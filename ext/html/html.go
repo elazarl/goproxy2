@@ -11,7 +11,7 @@ import (
 
 	"github.com/rogpeppe/go-charset/charset"
 	_ "github.com/rogpeppe/go-charset/data"
-	"github.com/elazarl/goproxy"
+	"github.com/elazarl/goproxy2"
 )
 
 var IsHtml goproxy.RespCondition = goproxy.ContentTypeIs("text/html")

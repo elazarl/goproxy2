@@ -48,7 +48,7 @@ To get a taste of `goproxy`, a basic HTTP/HTTPS transparent proxy
 package main
 
 import (
-    "github.com/elazarl/goproxy"
+    "github.com/elazarl/goproxy2"
     "log"
     "net/http"
 )
@@ -103,8 +103,8 @@ See additional examples in the examples directory.
 # What's New
 
   1. Ability to `Hijack` CONNECT requests. See
-[the eavesdropper example](https://github.com/elazarl/goproxy/blob/master/examples/goproxy-eavesdropper/main.go#L27)
-2.  Transparent proxy support for http/https including MITM certificate generation for TLS.  See the [transparent example.](https://github.com/elazarl/goproxy/tree/master/examples/goproxy-transparent)
+[the eavesdropper example](https://github.com/elazarl/goproxy2/blob/master/examples/goproxy-eavesdropper/main.go#L27)
+2.  Transparent proxy support for http/https including MITM certificate generation for TLS.  See the [transparent example.](https://github.com/elazarl/goproxy2/tree/master/examples/goproxy-transparent)
 
 # License
 

@@ -1,8 +1,8 @@
 package goproxy_html_test
 
 import (
-	"github.com/elazarl/goproxy"
-	"github.com/elazarl/goproxy/ext/html"
+	"github.com/elazarl/goproxy2"
+	"github.com/elazarl/goproxy2/ext/html"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
