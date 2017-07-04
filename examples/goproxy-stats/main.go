@@ -32,7 +32,7 @@ func (c CountReadCloser) Close() error {
 }
 
 func main() {
-	proxy := goproxy.NewProxyHttpServer()
+	proxy := goproxy.New()
 	timer := make(chan bool)
 	ch := make(chan Count, 10)
 	go func() {

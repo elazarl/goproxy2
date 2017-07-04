@@ -18,7 +18,7 @@ func orPanic(err error) {
 }
 
 func main() {
-	proxy := goproxy.NewProxyHttpServer()
+	proxy := goproxy.New()
 	proxy.OnRequest(goproxy.ReqHostMatches(regexp.MustCompile("^.*baidu.com$"))).
 		HandleConnect(goproxy.AlwaysReject)
 	proxy.OnRequest(goproxy.ReqHostMatches(regexp.MustCompile("^.*$"))).

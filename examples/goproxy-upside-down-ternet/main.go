@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	proxy := goproxy.NewProxyHttpServer()
+	proxy := goproxy.New()
 	proxy.OnResponse().Do(goproxy_image.HandleImage(func(img image.Image, ctx *goproxy.ProxyCtx) image.Image {
 		dx, dy := img.Bounds().Dx(), img.Bounds().Dy()
 

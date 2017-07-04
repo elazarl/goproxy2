@@ -23,7 +23,7 @@ func TestCharset(t *testing.T) {
 	defer s.Close()
 
 	ch := make(chan string, 2)
-	proxy := goproxy.NewProxyHttpServer()
+	proxy := goproxy.New()
 	proxy.OnResponse().Do(goproxy_html.HandleString(
 		func(s string, ctx *goproxy.ProxyCtx) string {
 			ch <- s

@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	proxy := goproxy.NewProxyHttpServer()
+	proxy := goproxy.New()
 	proxy.OnRequest(goproxy.DstHostIs("www.reddit.com")).DoFunc(
 		func(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 			h, _, _ := time.Now().Clock()

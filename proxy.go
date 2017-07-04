@@ -145,7 +145,7 @@ func (proxy *ProxyHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 }
 
 // New proxy server, logs to StdErr by default
-func NewProxyHttpServer() *ProxyHttpServer {
+func New() *ProxyHttpServer {
 	proxy := ProxyHttpServer{
 		Logger:        log.New(os.Stderr, "", log.LstdFlags),
 		reqHandlers:   []ReqHandler{},

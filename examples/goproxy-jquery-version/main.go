@@ -32,7 +32,7 @@ func findScriptSrc(html string) []string {
 // for scripts referencing jQuery library and emits warnings if different
 // versions of the library are being used for a given host.
 func NewJqueryVersionProxy() *goproxy.ProxyHttpServer {
-	proxy := goproxy.NewProxyHttpServer()
+	proxy := goproxy.New()
 	m := make(map[string]string)
 	jqueryMatcher := regexp.MustCompile(`(?i:jquery\.)`)
 	proxy.OnResponse(goproxy_html.IsHtml).Do(goproxy_html.HandleString(
