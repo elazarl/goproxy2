@@ -40,39 +40,6 @@ func (ctx *ProxyCtx) RoundTrip(req *http.Request) (*http.Response, error) {
 	return ctx.proxy.Tr.RoundTrip(req)
 }
 
-func (ctx *ProxyCtx) printf(msg string, argv ...interface{}) {
-	ctx.proxy.Logger.Printf("[%03d] "+msg+"\n", append([]interface{}{ctx.Session & 0xFF}, argv...)...)
-}
-
-// Logf prints a message to the proxy's log. Should be used in a ProxyHttpServer's filter
-// This message will be printed only if the Verbose field of the ProxyHttpServer is set to true
-//
-//	proxy.OnRequest().DoFunc(func(r *http.Request,ctx *goproxy.ProxyCtx) (*http.Request, *http.Response){
-//		nr := atomic.AddInt32(&counter,1)
-//		ctx.Printf("So far %d requests",nr)
-//		return r, nil
-//	})
-func (ctx *ProxyCtx) Logf(msg string, argv ...interface{}) {
-	if ctx.proxy.Verbose {
-		ctx.printf("INFO: "+msg, argv...)
-	}
-}
-
-// Warnf prints a message to the proxy's log. Should be used in a ProxyHttpServer's filter
-// This message will always be printed.
-//
-//	proxy.OnRequest().DoFunc(func(r *http.Request,ctx *goproxy.ProxyCtx) (*http.Request, *http.Response){
-//		f,err := os.OpenFile(cachedContent)
-//		if err != nil {
-//			ctx.Warnf("error open file %v: %v",cachedContent,err)
-//			return r, nil
-//		}
-//		return r, nil
-//	})
-func (ctx *ProxyCtx) Warnf(msg string, argv ...interface{}) {
-	ctx.printf("WARN: "+msg, argv...)
-}
-
 var charsetFinder = regexp.MustCompile("charset=([^ ;]*)")
 
 // Will try to infer the character set of the request from the headers.

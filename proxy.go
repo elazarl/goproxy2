@@ -2,14 +2,42 @@ package goproxy
 
 import (
 	"bufio"
+	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
 	"regexp"
 	"sync/atomic"
 )
+
+type emptyLogger struct{}
+
+var NopLogger = emptyLogger{}
+
+func (_ emptyLogger) Log(keyvals ...interface{}) error { return nil }
+
+// borrowed from github.com/go-kit/kit log
+type Logger interface {
+	Log(keyvals ...interface{}) error
+}
+
+type WriterLogger struct{ Writer io.Writer }
+
+var StderrLogger = WriterLogger{os.Stderr}
+
+func (w WriterLogger) Log(keyvals ...interface{}) error {
+	_, err := fmt.Fprintln(w.Writer, keyvals...)
+	return err
+}
+
+var ErrorLogger = Loggers{Error: StderrLogger, Debug: NopLogger}
+var VerboseLogger = Loggers{Error: StderrLogger, Debug: NopLogger}
+
+type Loggers struct {
+	Error Logger
+	Debug Logger
+}
 
 // The basic proxy type. Implements http.Handler.
 type ProxyHttpServer struct {
@@ -18,7 +46,7 @@ type ProxyHttpServer struct {
 	sess int64
 	// setting Verbose to true will log information on each request sent to the proxy
 	Verbose         bool
-	Logger          *log.Logger
+	Loggers         Loggers
 	NonproxyHandler http.Handler
 	reqHandlers     []ReqHandler
 	respHandlers    []RespHandler
@@ -71,9 +99,8 @@ func (proxy *ProxyHttpServer) filterResponse(respOrig *http.Response, ctx *Proxy
 	return
 }
 
-func removeProxyHeaders(ctx *ProxyCtx, r *http.Request) {
+func removeProxyHeaders(r *http.Request) {
 	r.RequestURI = "" // this must be reset when serving a request with the client
-	ctx.Logf("Sending request %v %v", r.Method, r.URL.String())
 	// If no Accept-Encoding header exists, Transport will add the headers it can accept
 	// and would wrap the response body with the relevant reader.
 	r.Header.Del("Accept-Encoding")
@@ -100,7 +127,7 @@ func (proxy *ProxyHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		ctx := &ProxyCtx{Req: r, Session: atomic.AddInt64(&proxy.sess, 1), proxy: proxy}
 
 		var err error
-		ctx.Logf("Got request %v %v %v %v", r.URL.Path, r.Host, r.Method, r.URL.String())
+		proxy.Loggers.Debug.Log("event", "request", "path", r.URL.Path, "host", r.Host, "method", r.Method, "url", r.URL.String())
 		if !r.URL.IsAbs() {
 			proxy.NonproxyHandler.ServeHTTP(w, r)
 			return
@@ -108,23 +135,23 @@ func (proxy *ProxyHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		r, resp := proxy.filterRequest(r, ctx)
 
 		if resp == nil {
-			removeProxyHeaders(ctx, r)
+			removeProxyHeaders(r)
 			resp, err = ctx.RoundTrip(r)
 			if err != nil {
 				ctx.Error = err
 				resp = proxy.filterResponse(nil, ctx)
 				if resp == nil {
-					ctx.Logf("error read response %v %v:", r.URL.Host, err.Error())
+					proxy.Loggers.Error.Log("event", "read response", "error", err.Error())
 					http.Error(w, err.Error(), 500)
 					return
 				}
 			}
-			ctx.Logf("Received response %v", resp.Status)
+			proxy.Loggers.Debug.Log("event", "response", "status", resp.Status)
 		}
 		origBody := resp.Body
 		resp = proxy.filterResponse(resp, ctx)
 		defer origBody.Close()
-		ctx.Logf("Copying response to client %v [%d]", resp.Status, resp.StatusCode)
+		proxy.Loggers.Debug.Log("event", "before copy response", "status", resp.Status)
 		// http.ResponseWriter will take care of filling the correct response length
 		// Setting it now, might impose wrong value, contradicting the actual new
 		// body the user returned.
@@ -138,16 +165,16 @@ func (proxy *ProxyHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		w.WriteHeader(resp.StatusCode)
 		nr, err := io.Copy(w, resp.Body)
 		if err := resp.Body.Close(); err != nil {
-			ctx.Warnf("Can't close response body %v", err)
+			proxy.Loggers.Error.Log("event", "copy response close", "error", err.Error())
 		}
-		ctx.Logf("Copied %v bytes to client error=%v", nr, err)
+		proxy.Loggers.Debug.Log("event", "copy response", "nbytes", nr, "error", err)
 	}
 }
 
 // New proxy server, logs to StdErr by default
 func New() *ProxyHttpServer {
 	proxy := ProxyHttpServer{
-		Logger:        log.New(os.Stderr, "", log.LstdFlags),
+		Loggers:       ErrorLogger,
 		reqHandlers:   []ReqHandler{},
 		respHandlers:  []RespHandler{},
 		httpsHandlers: []HttpsHandler{},

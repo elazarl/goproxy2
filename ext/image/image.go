@@ -2,14 +2,14 @@ package goproxy_image
 
 import (
 	"bytes"
+	. "github.com/elazarl/goproxy2"
+	"github.com/elazarl/goproxy2/regretable"
 	"image"
 	_ "image/gif"
 	"image/jpeg"
 	"image/png"
 	"io/ioutil"
 	"net/http"
-	. "github.com/elazarl/goproxy2"
-	"github.com/elazarl/goproxy2/regretable"
 )
 
 var RespIsImage = ContentTypeIs("image/gif",
@@ -37,8 +37,6 @@ func HandleImage(f func(img image.Image, ctx *ProxyCtx) image.Image) RespHandler
 		img, imgType, err := image.Decode(resp.Body)
 		if err != nil {
 			regret.Regret()
-			ctx.Warnf("%s: %s", ctx.Req.Method+" "+ctx.Req.URL.String()+" Image from "+ctx.Req.RequestURI+"content type"+
-				contentType+"cannot be decoded returning original image", err)
 			return resp
 		}
 		result := f(img, ctx)
@@ -47,25 +45,21 @@ func HandleImage(f func(img image.Image, ctx *ProxyCtx) image.Image) RespHandler
 		// No gif image encoder in go - convert to png
 		case "image/gif", "image/png":
 			if err := png.Encode(buf, result); err != nil {
-				ctx.Warnf("Cannot encode image, returning orig %v %v", ctx.Req.URL.String(), err)
 				return resp
 			}
 			resp.Header.Set("Content-Type", "image/png")
 		case "image/jpeg", "image/pjpeg":
 			if err := jpeg.Encode(buf, result, nil); err != nil {
-				ctx.Warnf("Cannot encode image, returning orig %v %v", ctx.Req.URL.String(), err)
 				return resp
 			}
 		case "application/octet-stream":
 			switch imgType {
 			case "jpeg":
 				if err := jpeg.Encode(buf, result, nil); err != nil {
-					ctx.Warnf("Cannot encode image as jpeg, returning orig %v %v", ctx.Req.URL.String(), err)
 					return resp
 				}
 			case "png", "gif":
 				if err := png.Encode(buf, result); err != nil {
-					ctx.Warnf("Cannot encode image as png, returning orig %v %v", ctx.Req.URL.String(), err)
 					return resp
 				}
 			}
