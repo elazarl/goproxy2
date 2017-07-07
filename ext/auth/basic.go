@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"io/ioutil"
 	"net/http"
@@ -48,7 +49,7 @@ func auth(req *http.Request, f func(user, passwd string) bool) bool {
 //
 // You probably want to use auth.ProxyBasic(proxy) to enable authentication for all proxy activities
 func Basic(realm string, f func(user, passwd string) bool) goproxy.ReqHandler {
-	return goproxy.FuncReqHandler(func(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
+	return goproxy.FuncReqHandler(func(req *http.Request, ctx context.Context) (*http.Request, *http.Response) {
 		if !auth(req, f) {
 			return nil, BasicUnauthorized(req, realm)
 		}
@@ -60,9 +61,9 @@ func Basic(realm string, f func(user, passwd string) bool) goproxy.ReqHandler {
 //
 // You probably want to use auth.ProxyBasic(proxy) to enable authentication for all proxy activities
 func BasicConnect(realm string, f func(user, passwd string) bool) goproxy.HttpsHandler {
-	return goproxy.FuncHttpsHandler(func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
-		if !auth(ctx.Req, f) {
-			ctx.Resp = BasicUnauthorized(ctx.Req, realm)
+	return goproxy.FuncHttpsHandler(func(host string, ctx context.Context) (*goproxy.ConnectAction, string) {
+		if !auth(CtxReq(ctx), f) {
+			ctx.Resp = BasicUnauthorized(CtxReq(ctx), realm)
 			return goproxy.RejectConnect, host
 		}
 		return goproxy.OkConnect, host

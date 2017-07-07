@@ -12,6 +12,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"io"
 	"io/ioutil"
@@ -53,7 +54,7 @@ func main() {
 	}
 	proxy := goproxy.New()
 	proxy.Verbose = *verbose
-	proxy.OnResponse().DoFunc(func(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
+	proxy.OnResponse().DoFunc(func(resp *http.Response, ctx context.Context) *http.Response {
 		contentType := resp.Header.Get("Content-Type")
 		if contentType == "application/javascript" || contentType == "application/x-javascript" {
 			// in real code, response should be streamed as well
@@ -62,16 +63,16 @@ func main() {
 			cmd.Stdin = resp.Body
 			resp.Body, err = cmd.StdoutPipe()
 			if err != nil {
-				ctx.Warnf("Cannot minify content in %v: %v", ctx.Req.URL, err)
-				return goproxy.TextResponse(ctx.Req, "Error getting stdout pipe")
+				ctx.Warnf("Cannot minify content in %v: %v", CtxReq(ctx).URL, err)
+				return goproxy.TextResponse(CtxReq(ctx), "Error getting stdout pipe")
 			}
 			stderr, err := cmd.StderrPipe()
 			if err != nil {
 				ctx.Logf("Error obtaining stderr from yuicompress: %s", err)
-				return goproxy.TextResponse(ctx.Req, "Error getting stderr pipe")
+				return goproxy.TextResponse(CtxReq(ctx), "Error getting stderr pipe")
 			}
 			if err := cmd.Start(); err != nil {
-				ctx.Warnf("Cannot minify content in %v: %v", ctx.Req.URL, err)
+				ctx.Warnf("Cannot minify content in %v: %v", CtxReq(ctx).URL, err)
 			}
 			go func() {
 				defer stderr.Close()

@@ -64,7 +64,7 @@ This line will add `X-GoProxy: yxorPoG-X` header to all requests sent through th
 
 ```go
 proxy.OnRequest().DoFunc(
-    func(r *http.Request,ctx *goproxy.ProxyCtx)(*http.Request,*http.Response) {
+    func(r *http.Request,ctx context.Context)(*http.Request,*http.Response) {
         r.Header.Set("X-GoProxy","yxorPoG-X")
         return r,nil
     })
@@ -80,7 +80,7 @@ In order to refuse connections to reddit at work time
 
 ```go
 proxy.OnRequest(goproxy.DstHostIs("www.reddit.com")).DoFunc(
-    func(r *http.Request,ctx *goproxy.ProxyCtx)(*http.Request,*http.Response) {
+    func(r *http.Request,ctx context.Context)(*http.Request,*http.Response) {
         if h,_,_ := time.Now().Clock(); h >= 8 && h <= 17 {
             return r,goproxy.NewResponse(r,
                     goproxy.ContentTypeText,http.StatusForbidden,

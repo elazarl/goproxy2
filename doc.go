@@ -18,7 +18,7 @@ Typical usage is
 
 Adding a header to each request
 
-	proxy.OnRequest().DoFunc(func(r *http.Request,ctx *goproxy.ProxyCtx) (*http.Request, *http.Response){
+	proxy.OnRequest().DoFunc(func(r *http.Request,ctx context.Context) (*http.Request, *http.Response){
 		r.Header.Set("X-GoProxy","1")
 		return r, nil
 	})
@@ -27,8 +27,8 @@ Note that the function is called before the proxy sends the request to the serve
 
 For printing the content type of all incoming responses
 
-	proxy.OnResponse().DoFunc(func(r *http.Response, ctx *goproxy.ProxyCtx)*http.Response{
-		println(ctx.Req.Host,"->",r.Header.Get("Content-Type"))
+	proxy.OnResponse().DoFunc(func(r *http.Response, ctx context.Context)*http.Response{
+		println(CtxReq(ctx).Host,"->",r.Header.Get("Content-Type"))
 		return r
 	})
 
@@ -39,8 +39,8 @@ interaction with the proxy.
 To print the content type of all responses from a certain url, we'll add a
 ReqCondition to the OnResponse function:
 
-	proxy.OnResponse(goproxy.UrlIs("golang.org/pkg")).DoFunc(func(r *http.Response, ctx *goproxy.ProxyCtx)*http.Response{
-		println(ctx.Req.Host,"->",r.Header.Get("Content-Type"))
+	proxy.OnResponse(goproxy.UrlIs("golang.org/pkg")).DoFunc(func(r *http.Response, ctx context.Context)*http.Response{
+		println(CtxReq(ctx).Host,"->",r.Header.Get("Content-Type"))
 		return r
 	})
 
@@ -58,9 +58,9 @@ make sense to read the response, if you still haven't got it!
 
 Finally, we have convenience function to throw a quick response
 
-	proxy.OnResponse(hasGoProxyHeader).DoFunc(func(r*http.Response,ctx *goproxy.ProxyCtx)*http.Response {
+	proxy.OnResponse(hasGoProxyHeader).DoFunc(func(r*http.Response,ctx context.Context)*http.Response {
 		r.Body.Close()
-		return goproxy.ForbiddenTextResponse(ctx.Req,"Can't see response with X-GoProxy header!")
+		return goproxy.ForbiddenTextResponse(CtxReq(ctx),"Can't see response with X-GoProxy header!")
 	})
 
 we close the body of the original repsonse, and return a new 403 response with a short message.

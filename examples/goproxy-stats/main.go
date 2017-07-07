@@ -1,13 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"github.com/elazarl/goproxy2"
-	"github.com/elazarl/goproxy2/ext/html"
 	"io"
 	"log"
 	. "net/http"
 	"time"
+
+	"github.com/elazarl/goproxy2"
+	"github.com/elazarl/goproxy2/ext/html"
 )
 
 type Count struct {
@@ -57,8 +59,8 @@ func main() {
 	}()
 
 	// IsWebRelatedText filters on html/javascript/css resources
-	proxy.OnResponse(goproxy_html.IsWebRelatedText).DoFunc(func(resp *Response, ctx *goproxy.ProxyCtx) *Response {
-		resp.Body = &CountReadCloser{ctx.Req.URL.String(), resp.Body, ch, 0}
+	proxy.OnResponse(goproxy_html.IsWebRelatedText).DoFunc(func(resp *Response, ctx context.Context) *Response {
+		resp.Body = &CountReadCloser{CtxReq(ctx).URL.String(), resp.Body, ch, 0}
 		return resp
 	})
 	fmt.Printf("listening on :8080\n")

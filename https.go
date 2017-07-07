@@ -2,6 +2,7 @@ package goproxy
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"errors"
 	"io"
@@ -14,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 )
 
 type ConnectActionLiteral int
@@ -38,8 +38,8 @@ var (
 
 type ConnectAction struct {
 	Action    ConnectActionLiteral
-	Hijack    func(req *http.Request, client net.Conn, ctx *ProxyCtx)
-	TLSConfig func(host string, ctx *ProxyCtx) (*tls.Config, error)
+	Hijack    func(req *http.Request, client net.Conn, ctx context.Context)
+	TLSConfig func(host string, ctx context.Context) (*tls.Config, error)
 }
 
 func stripPort(s string) string {
@@ -65,7 +65,7 @@ func (proxy *ProxyHttpServer) connectDial(network, addr string) (c net.Conn, err
 }
 
 func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request) {
-	ctx := &ProxyCtx{Req: r, Session: atomic.AddInt64(&proxy.sess, 1), proxy: proxy}
+	ctx := proxy.newCtx(r)
 
 	hij, ok := w.(http.Hijacker)
 	if !ok {
@@ -97,7 +97,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 		targetSiteCon, err := proxy.connectDial("tcp", host)
 		if err != nil {
 			proxy.Loggers.Error.Log("event", "accept connect error", "host", host, "error", err.Error())
-			proxy.httpError(proxyClient, ctx, err)
+			proxy.httpError(proxyClient, err)
 			return
 		}
 		proxy.Loggers.Debug.Log("event", "accept connect", "host", host)
@@ -106,14 +106,14 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 		targetTCP, targetOK := targetSiteCon.(*net.TCPConn)
 		proxyClientTCP, clientOK := proxyClient.(*net.TCPConn)
 		if targetOK && clientOK {
-			go proxy.copyAndClose(ctx, targetTCP, proxyClientTCP)
-			go proxy.copyAndClose(ctx, proxyClientTCP, targetTCP)
+			go proxy.copyAndClose(targetTCP, proxyClientTCP)
+			go proxy.copyAndClose(proxyClientTCP, targetTCP)
 		} else {
 			go func() {
 				var wg sync.WaitGroup
 				wg.Add(2)
-				go proxy.copyOrWarn(ctx, targetSiteCon, proxyClient, &wg)
-				go proxy.copyOrWarn(ctx, proxyClient, targetSiteCon, &wg)
+				go proxy.copyOrWarn(targetSiteCon, proxyClient, &wg)
+				go proxy.copyOrWarn(proxyClient, targetSiteCon, &wg)
 				wg.Wait()
 				proxyClient.Close()
 				targetSiteCon.Close()
@@ -146,19 +146,19 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			req, resp := proxy.filterRequest(req, ctx)
 			if resp == nil {
 				if err := req.Write(targetSiteCon); err != nil {
-					proxy.httpError(proxyClient, ctx, err)
+					proxy.httpError(proxyClient, err)
 					return
 				}
 				resp, err = http.ReadResponse(remote, req)
 				if err != nil {
-					proxy.httpError(proxyClient, ctx, err)
+					proxy.httpError(proxyClient, err)
 					return
 				}
 				defer resp.Body.Close()
 			}
 			resp = proxy.filterResponse(resp, ctx)
 			if err := resp.Write(proxyClient); err != nil {
-				proxy.httpError(proxyClient, ctx, err)
+				proxy.httpError(proxyClient, err)
 				return
 			}
 		}
@@ -174,7 +174,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			var err error
 			tlsConfig, err = todo.TLSConfig(host, ctx)
 			if err != nil {
-				proxy.httpError(proxyClient, ctx, err)
+				proxy.httpError(proxyClient, err)
 				return
 			}
 		}
@@ -189,7 +189,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			clientTlsReader := bufio.NewReader(rawClientTls)
 			for !isEof(clientTlsReader) {
 				req, err := http.ReadRequest(clientTlsReader)
-				var ctx = &ProxyCtx{Req: req, Session: atomic.AddInt64(&proxy.sess, 1), proxy: proxy}
+				var ctx = proxy.newCtx(req)
 				if err != nil && err != io.EOF {
 					return
 				}
@@ -206,7 +206,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 
 				// Bug fix which goproxy fails to provide request
 				// information URL in the context when does HTTPS MITM
-				ctx.Req = req
+				ctx = CtxWithReq(ctx, req)
 
 				req, resp := proxy.filterRequest(req, ctx)
 				if resp == nil {
@@ -214,8 +214,9 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 						proxy.Loggers.Error.Log("event", "HTTP MITM request URL", "url", "https://"+r.Host+req.URL.Path, "error", err.Error())
 						return
 					}
-					removeProxyHeaders(req)
-					resp, err = ctx.RoundTrip(req)
+					removeProxyHeaders(ctx, req)
+					rt := CtxRoundTripper(ctx)
+					resp, err = rt.RoundTrip(req, ctx)
 					if err != nil {
 						proxy.Loggers.Error.Log("event", "HTTP MITM RoundTrip", "error", err.Error())
 						return
@@ -269,8 +270,8 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 		proxyClient.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\n"))
 		todo.Hijack(r, proxyClient, ctx)
 	case ConnectReject:
-		if ctx.Resp != nil {
-			if err := ctx.Resp.Write(proxyClient); err != nil {
+		if CtxResp(ctx) != nil {
+			if err := CtxResp(ctx).Write(proxyClient); err != nil {
 				proxy.Loggers.Error.Log("event", "HTTP CONNECT reject write", "error", err.Error())
 			}
 		}
@@ -278,7 +279,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (proxy *ProxyHttpServer) httpError(w io.WriteCloser, ctx *ProxyCtx, err error) {
+func (proxy *ProxyHttpServer) httpError(w io.WriteCloser, err error) {
 	if _, err := io.WriteString(w, "HTTP/1.1 502 Bad Gateway\r\n\r\n"); err != nil {
 		proxy.Loggers.Error.Log("event", "HTTP Error write", "error", err.Error())
 	}
@@ -287,14 +288,14 @@ func (proxy *ProxyHttpServer) httpError(w io.WriteCloser, ctx *ProxyCtx, err err
 	}
 }
 
-func (proxy *ProxyHttpServer) copyOrWarn(ctx *ProxyCtx, dst io.Writer, src io.Reader, wg *sync.WaitGroup) {
+func (proxy *ProxyHttpServer) copyOrWarn(dst io.Writer, src io.Reader, wg *sync.WaitGroup) {
 	if _, err := io.Copy(dst, src); err != nil {
 		proxy.Loggers.Error.Log("event", "io.Copy", "error", err.Error())
 	}
 	wg.Done()
 }
 
-func (proxy *ProxyHttpServer) copyAndClose(ctx *ProxyCtx, dst, src *net.TCPConn) {
+func (proxy *ProxyHttpServer) copyAndClose(dst, src *net.TCPConn) {
 	if _, err := io.Copy(dst, src); err != nil {
 		proxy.Loggers.Error.Log("event", "io.Copy&Close", "error", err.Error())
 	}
@@ -397,8 +398,8 @@ func (proxy *ProxyHttpServer) NewConnectDialToProxy(https_proxy string) func(net
 	return nil
 }
 
-func TLSConfigFromCA(ca *tls.Certificate) func(host string, ctx *ProxyCtx) (*tls.Config, error) {
-	return func(host string, ctx *ProxyCtx) (*tls.Config, error) {
+func TLSConfigFromCA(ca *tls.Certificate) func(host string, ctx context.Context) (*tls.Config, error) {
+	return func(host string, ctx context.Context) (*tls.Config, error) {
 		config := *defaultTLSConfig
 		cert, err := signHost(*ca, []string{stripPort(host)})
 		if err != nil {

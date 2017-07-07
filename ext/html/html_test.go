@@ -1,13 +1,15 @@
 package goproxy_html_test
 
 import (
-	"github.com/elazarl/goproxy2"
-	"github.com/elazarl/goproxy2/ext/html"
+	"context"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/elazarl/goproxy2"
+	"github.com/elazarl/goproxy2/ext/html"
 )
 
 type ConstantServer int
@@ -25,7 +27,7 @@ func TestCharset(t *testing.T) {
 	ch := make(chan string, 2)
 	proxy := goproxy.New()
 	proxy.OnResponse().Do(goproxy_html.HandleString(
-		func(s string, ctx *goproxy.ProxyCtx) string {
+		func(s string, ctx context.Context) string {
 			ch <- s
 			return s
 		}))

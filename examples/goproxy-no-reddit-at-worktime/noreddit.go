@@ -1,16 +1,18 @@
 package main
 
 import (
-	"github.com/elazarl/goproxy2"
+	"context"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/elazarl/goproxy2"
 )
 
 func main() {
 	proxy := goproxy.New()
 	proxy.OnRequest(goproxy.DstHostIs("www.reddit.com")).DoFunc(
-		func(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
+		func(r *http.Request, ctx context.Context) (*http.Request, *http.Response) {
 			h, _, _ := time.Now().Clock()
 			if h >= 8 && h <= 17 {
 				return r, goproxy.NewResponse(r,

@@ -1,6 +1,9 @@
 package goproxy
 
-import "net/http"
+import (
+	"context"
+	"net/http"
+)
 
 // ReqHandler will "tamper" with the request coming to the proxy server
 // If Handle returns req,nil the proxy will send the returned request
@@ -8,14 +11,14 @@ import "net/http"
 // skip sending any requests, and will simply return the response `resp`
 // to the client.
 type ReqHandler interface {
-	Handle(req *http.Request, ctx *ProxyCtx) (*http.Request, *http.Response)
+	Handle(req *http.Request, ctx context.Context) (*http.Request, *http.Response)
 }
 
 // A wrapper that would convert a function to a ReqHandler interface type
-type FuncReqHandler func(req *http.Request, ctx *ProxyCtx) (*http.Request, *http.Response)
+type FuncReqHandler func(req *http.Request, ctx context.Context) (*http.Request, *http.Response)
 
 // FuncReqHandler.Handle(req,ctx) <=> FuncReqHandler(req,ctx)
-func (f FuncReqHandler) Handle(req *http.Request, ctx *ProxyCtx) (*http.Request, *http.Response) {
+func (f FuncReqHandler) Handle(req *http.Request, ctx context.Context) (*http.Request, *http.Response) {
 	return f(req, ctx)
 }
 
@@ -24,14 +27,14 @@ func (f FuncReqHandler) Handle(req *http.Request, ctx *ProxyCtx) (*http.Request,
 // The proxy server will send to the client the response returned by the RespHandler.
 // In case of error, resp will be nil, and ctx.RoundTrip.Error will contain the error
 type RespHandler interface {
-	Handle(resp *http.Response, ctx *ProxyCtx) *http.Response
+	Handle(resp *http.Response, ctx context.Context) *http.Response
 }
 
 // A wrapper that would convert a function to a RespHandler interface type
-type FuncRespHandler func(resp *http.Response, ctx *ProxyCtx) *http.Response
+type FuncRespHandler func(resp *http.Response, ctx context.Context) *http.Response
 
 // FuncRespHandler.Handle(req,ctx) <=> FuncRespHandler(req,ctx)
-func (f FuncRespHandler) Handle(resp *http.Response, ctx *ProxyCtx) *http.Response {
+func (f FuncRespHandler) Handle(resp *http.Response, ctx context.Context) *http.Response {
 	return f(resp, ctx)
 }
 
@@ -45,13 +48,13 @@ func (f FuncRespHandler) Handle(resp *http.Response, ctx *ProxyCtx) *http.Respon
 // through the usual flow (request and response filtered through the ReqHandlers
 // and RespHandlers)
 type HttpsHandler interface {
-	HandleConnect(req string, ctx *ProxyCtx) (*ConnectAction, string)
+	HandleConnect(req string, ctx context.Context) (*ConnectAction, string)
 }
 
 // A wrapper that would convert a function to a HttpsHandler interface type
-type FuncHttpsHandler func(host string, ctx *ProxyCtx) (*ConnectAction, string)
+type FuncHttpsHandler func(host string, ctx context.Context) (*ConnectAction, string)
 
 // FuncHttpsHandler should implement the RespHandler interface
-func (f FuncHttpsHandler) HandleConnect(host string, ctx *ProxyCtx) (*ConnectAction, string) {
+func (f FuncHttpsHandler) HandleConnect(host string, ctx context.Context) (*ConnectAction, string) {
 	return f(host, ctx)
 }

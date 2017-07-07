@@ -2,13 +2,13 @@ package goproxy
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"regexp"
-	"sync/atomic"
 )
 
 type emptyLogger struct{}
@@ -78,7 +78,7 @@ func isEof(r *bufio.Reader) bool {
 	return false
 }
 
-func (proxy *ProxyHttpServer) filterRequest(r *http.Request, ctx *ProxyCtx) (req *http.Request, resp *http.Response) {
+func (proxy *ProxyHttpServer) filterRequest(r *http.Request, ctx context.Context) (req *http.Request, resp *http.Response) {
 	req = r
 	for _, h := range proxy.reqHandlers {
 		req, resp = h.Handle(r, ctx)
@@ -90,16 +90,16 @@ func (proxy *ProxyHttpServer) filterRequest(r *http.Request, ctx *ProxyCtx) (req
 	}
 	return
 }
-func (proxy *ProxyHttpServer) filterResponse(respOrig *http.Response, ctx *ProxyCtx) (resp *http.Response) {
+func (proxy *ProxyHttpServer) filterResponse(respOrig *http.Response, ctx context.Context) (resp *http.Response) {
 	resp = respOrig
 	for _, h := range proxy.respHandlers {
-		ctx.Resp = resp
+		ctx = CtxWithResp(ctx, resp)
 		resp = h.Handle(resp, ctx)
 	}
 	return
 }
 
-func removeProxyHeaders(r *http.Request) {
+func removeProxyHeaders(ctx context.Context, r *http.Request) {
 	r.RequestURI = "" // this must be reset when serving a request with the client
 	// If no Accept-Encoding header exists, Transport will add the headers it can accept
 	// and would wrap the response body with the relevant reader.
@@ -124,7 +124,7 @@ func (proxy *ProxyHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	if r.Method == "CONNECT" {
 		proxy.handleHttps(w, r)
 	} else {
-		ctx := &ProxyCtx{Req: r, Session: atomic.AddInt64(&proxy.sess, 1), proxy: proxy}
+		ctx := proxy.newCtx(r)
 
 		var err error
 		proxy.Loggers.Debug.Log("event", "request", "path", r.URL.Path, "host", r.Host, "method", r.Method, "url", r.URL.String())
@@ -135,10 +135,11 @@ func (proxy *ProxyHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		r, resp := proxy.filterRequest(r, ctx)
 
 		if resp == nil {
-			removeProxyHeaders(r)
-			resp, err = ctx.RoundTrip(r)
+			removeProxyHeaders(ctx, r)
+			rt := CtxRoundTripper(ctx)
+			resp, err = rt.RoundTrip(r, ctx)
 			if err != nil {
-				ctx.Error = err
+				ctx = CtxWithError(ctx, err)
 				resp = proxy.filterResponse(nil, ctx)
 				if resp == nil {
 					proxy.Loggers.Error.Log("event", "read response", "error", err.Error())

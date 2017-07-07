@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -45,29 +46,29 @@ func main() {
 	proxy.OnRequest(goproxy.ReqHostMatches(regexp.MustCompile("^.*$"))).
 		HandleConnect(goproxy.AlwaysMitm)
 	proxy.OnRequest(goproxy.ReqHostMatches(regexp.MustCompile("^.*:80$"))).
-		HijackConnect(func(req *http.Request, client net.Conn, ctx *goproxy.ProxyCtx) {
-		defer func() {
-			if e := recover(); e != nil {
-				ctx.Logf("error connecting to remote: %v", e)
-				client.Write([]byte("HTTP/1.1 500 Cannot reach destination\r\n\r\n"))
+		HijackConnect(func(req *http.Request, client net.Conn, ctx context.Context) {
+			defer func() {
+				if e := recover(); e != nil {
+					ctx.Logf("error connecting to remote: %v", e)
+					client.Write([]byte("HTTP/1.1 500 Cannot reach destination\r\n\r\n"))
+				}
+				client.Close()
+			}()
+			clientBuf := bufio.NewReadWriter(bufio.NewReader(client), bufio.NewWriter(client))
+			remote, err := connectDial(proxy, "tcp", req.URL.Host)
+			orPanic(err)
+			remoteBuf := bufio.NewReadWriter(bufio.NewReader(remote), bufio.NewWriter(remote))
+			for {
+				req, err := http.ReadRequest(clientBuf.Reader)
+				orPanic(err)
+				orPanic(req.Write(remoteBuf))
+				orPanic(remoteBuf.Flush())
+				resp, err := http.ReadResponse(remoteBuf.Reader, req)
+				orPanic(err)
+				orPanic(resp.Write(clientBuf.Writer))
+				orPanic(clientBuf.Flush())
 			}
-			client.Close()
-		}()
-		clientBuf := bufio.NewReadWriter(bufio.NewReader(client), bufio.NewWriter(client))
-		remote, err := connectDial(proxy, "tcp", req.URL.Host)
-		orPanic(err)
-		remoteBuf := bufio.NewReadWriter(bufio.NewReader(remote), bufio.NewWriter(remote))
-		for {
-			req, err := http.ReadRequest(clientBuf.Reader)
-			orPanic(err)
-			orPanic(req.Write(remoteBuf))
-			orPanic(remoteBuf.Flush())
-			resp, err := http.ReadResponse(remoteBuf.Reader, req)
-			orPanic(err)
-			orPanic(resp.Write(clientBuf.Writer))
-			orPanic(clientBuf.Flush())
-		}
-	})
+		})
 
 	go func() {
 		log.Fatalln(http.ListenAndServe(*http_addr, proxy))

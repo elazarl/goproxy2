@@ -1,11 +1,13 @@
 package main
 
 import (
-	"github.com/elazarl/goproxy2"
-	"github.com/elazarl/goproxy2/ext/html"
+	"context"
 	"log"
 	"net/http"
 	"regexp"
+
+	"github.com/elazarl/goproxy2"
+	"github.com/elazarl/goproxy2/ext/html"
 )
 
 var (
@@ -36,21 +38,21 @@ func NewJqueryVersionProxy() *goproxy.ProxyHttpServer {
 	m := make(map[string]string)
 	jqueryMatcher := regexp.MustCompile(`(?i:jquery\.)`)
 	proxy.OnResponse(goproxy_html.IsHtml).Do(goproxy_html.HandleString(
-		func(s string, ctx *goproxy.ProxyCtx) string {
+		func(s string, ctx context.Context) string {
 			for _, src := range findScriptSrc(s) {
 				if !jqueryMatcher.MatchString(src) {
 					continue
 				}
-				prev, ok := m[ctx.Req.Host]
+				prev, ok := m[CtxReq(ctx).Host]
 				if ok {
 					if prev != src {
 						ctx.Warnf("In %v, Contradicting jqueries %v %v",
-							ctx.Req.URL, prev, src)
+							CtxReq(ctx).URL, prev, src)
 						break
 					}
 				} else {
-					ctx.Warnf("%s uses jquery %s", ctx.Req.Host, src)
-					m[ctx.Req.Host] = src
+					ctx.Warnf("%s uses jquery %s", CtxReq(ctx).Host, src)
+					m[CtxReq(ctx).Host] = src
 				}
 			}
 			return s
