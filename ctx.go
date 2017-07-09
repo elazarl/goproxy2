@@ -47,10 +47,18 @@ func CtxReq(ctx context.Context) *http.Request {
 func CtxWithRoundTripper(ctx context.Context, rt RoundTripper) context.Context {
 	return context.WithValue(ctx, ctxKeyRoundTripper, rt)
 }
+
+type transportRoundTripper struct{ tr *http.Transport }
+
+func (rt transportRoundTripper) RoundTrip(req *http.Request, ctx context.Context) (*http.Response, error) {
+	return rt.tr.RoundTrip(req)
+}
+
 func CtxRoundTripper(ctx context.Context) RoundTripper {
 	v, ok := ctx.Value(ctxKeyRoundTripper).(RoundTripper)
 	if !ok {
-		panic("required value in context missing")
+		proxy := ctxProxy(ctx)
+		return transportRoundTripper{proxy.Tr}
 	}
 	return v
 }
@@ -62,7 +70,7 @@ func CtxWithError(ctx context.Context, err error) context.Context {
 func CtxError(ctx context.Context) error {
 	v, ok := ctx.Value(ctxKeyError).(error)
 	if !ok {
-		panic("required value in context missing")
+		return nil
 	}
 	return v
 }
