@@ -1,3 +1,12 @@
+# What is it?
+
+This is an experimental branch of goproxy, completely breaking the API.
+
+It is *unstable* and can *change at whim*.
+
+If results are good, we would delete this repository, and merge changes to
+the original goproxy.
+
 # Introduction
 
 [![GoDoc](https://godoc.org/github.com/elazarl/goproxy?status.svg)](https://godoc.org/github.com/elazarl/goproxy)
