@@ -11,14 +11,14 @@ import (
 // skip sending any requests, and will simply return the response `resp`
 // to the client.
 type ReqHandler interface {
-	Handle(req *http.Request, ctx context.Context) (*http.Request, *http.Response)
+	Handle(req *http.Request, ctx context.Context) (*http.Request, *http.Response, context.Context)
 }
 
 // A wrapper that would convert a function to a ReqHandler interface type
-type FuncReqHandler func(req *http.Request, ctx context.Context) (*http.Request, *http.Response)
+type FuncReqHandler func(req *http.Request, ctx context.Context) (*http.Request, *http.Response, context.Context)
 
 // FuncReqHandler.Handle(req,ctx) <=> FuncReqHandler(req,ctx)
-func (f FuncReqHandler) Handle(req *http.Request, ctx context.Context) (*http.Request, *http.Response) {
+func (f FuncReqHandler) Handle(req *http.Request, ctx context.Context) (*http.Request, *http.Response, context.Context) {
 	return f(req, ctx)
 }
 
@@ -27,14 +27,14 @@ func (f FuncReqHandler) Handle(req *http.Request, ctx context.Context) (*http.Re
 // The proxy server will send to the client the response returned by the RespHandler.
 // In case of error, resp will be nil, and ctx.RoundTrip.Error will contain the error
 type RespHandler interface {
-	Handle(resp *http.Response, ctx context.Context) *http.Response
+	Handle(resp *http.Response, ctx context.Context) (*http.Response, context.Context)
 }
 
 // A wrapper that would convert a function to a RespHandler interface type
-type FuncRespHandler func(resp *http.Response, ctx context.Context) *http.Response
+type FuncRespHandler func(resp *http.Response, ctx context.Context) (*http.Response, context.Context)
 
 // FuncRespHandler.Handle(req,ctx) <=> FuncRespHandler(req,ctx)
-func (f FuncRespHandler) Handle(resp *http.Response, ctx context.Context) *http.Response {
+func (f FuncRespHandler) Handle(resp *http.Response, ctx context.Context) (*http.Response, context.Context) {
 	return f(resp, ctx)
 }
 

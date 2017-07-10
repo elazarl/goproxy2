@@ -23,13 +23,13 @@ var RespIsImage = ContentTypeIs("image/gif",
 // "image/tiff" tiff support is in external package, and rarely used, so we omitted it
 
 func HandleImage(f func(img image.Image, ctx context.Context) image.Image) RespHandler {
-	return FuncRespHandler(func(resp *http.Response, ctx context.Context) *http.Response {
+	return FuncRespHandler(func(resp *http.Response, ctx context.Context) (*http.Response, context.Context) {
 		if !RespIsImage.HandleResp(resp, ctx) {
-			return resp
+			return resp, ctx
 		}
 		if resp.StatusCode != 200 {
 			// we might get 304 - not modified response without data
-			return resp
+			return resp, ctx
 		}
 		contentType := resp.Header.Get("Content-Type")
 
@@ -39,7 +39,7 @@ func HandleImage(f func(img image.Image, ctx context.Context) image.Image) RespH
 		img, imgType, err := image.Decode(resp.Body)
 		if err != nil {
 			regret.Regret()
-			return resp
+			return resp, ctx
 		}
 		result := f(img, ctx)
 		buf := bytes.NewBuffer([]byte{})
@@ -47,28 +47,28 @@ func HandleImage(f func(img image.Image, ctx context.Context) image.Image) RespH
 		// No gif image encoder in go - convert to png
 		case "image/gif", "image/png":
 			if err := png.Encode(buf, result); err != nil {
-				return resp
+				return resp, ctx
 			}
 			resp.Header.Set("Content-Type", "image/png")
 		case "image/jpeg", "image/pjpeg":
 			if err := jpeg.Encode(buf, result, nil); err != nil {
-				return resp
+				return resp, ctx
 			}
 		case "application/octet-stream":
 			switch imgType {
 			case "jpeg":
 				if err := jpeg.Encode(buf, result, nil); err != nil {
-					return resp
+					return resp, ctx
 				}
 			case "png", "gif":
 				if err := png.Encode(buf, result); err != nil {
-					return resp
+					return resp, ctx
 				}
 			}
 		default:
 			panic("unhandlable type" + contentType)
 		}
 		resp.Body = ioutil.NopCloser(buf)
-		return resp
+		return resp, ctx
 	})
 }

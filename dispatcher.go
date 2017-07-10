@@ -177,7 +177,7 @@ type ReqProxyConds struct {
 }
 
 // DoFunc is equivalent to proxy.OnRequest().Do(FuncReqHandler(f))
-func (pcond *ReqProxyConds) DoFunc(f func(req *http.Request, ctx context.Context) (*http.Request, *http.Response)) {
+func (pcond *ReqProxyConds) DoFunc(f func(req *http.Request, ctx context.Context) (*http.Request, *http.Response, context.Context)) {
 	pcond.Do(FuncReqHandler(f))
 }
 
@@ -190,10 +190,10 @@ func (pcond *ReqProxyConds) DoFunc(f func(req *http.Request, ctx context.Context
 //	// if they are, will call handler.Handle(req,ctx)
 func (pcond *ReqProxyConds) Do(h ReqHandler) {
 	pcond.proxy.reqHandlers = append(pcond.proxy.reqHandlers,
-		FuncReqHandler(func(r *http.Request, ctx context.Context) (*http.Request, *http.Response) {
+		FuncReqHandler(func(r *http.Request, ctx context.Context) (*http.Request, *http.Response, context.Context) {
 			for _, cond := range pcond.reqConds {
 				if !cond.HandleReq(r, ctx) {
-					return r, nil
+					return r, nil, ctx
 				}
 			}
 			return h.Handle(r, ctx)
@@ -261,7 +261,7 @@ type ProxyConds struct {
 }
 
 // ProxyConds.DoFunc is equivalent to proxy.OnResponse().Do(FuncRespHandler(f))
-func (pcond *ProxyConds) DoFunc(f func(resp *http.Response, ctx context.Context) *http.Response) {
+func (pcond *ProxyConds) DoFunc(f func(resp *http.Response, ctx context.Context) (*http.Response, context.Context)) {
 	pcond.Do(FuncRespHandler(f))
 }
 
@@ -269,15 +269,15 @@ func (pcond *ProxyConds) DoFunc(f func(resp *http.Response, ctx context.Context)
 // request that matches the conditions aggregated in pcond.
 func (pcond *ProxyConds) Do(h RespHandler) {
 	pcond.proxy.respHandlers = append(pcond.proxy.respHandlers,
-		FuncRespHandler(func(resp *http.Response, ctx context.Context) *http.Response {
+		FuncRespHandler(func(resp *http.Response, ctx context.Context) (*http.Response, context.Context) {
 			for _, cond := range pcond.reqConds {
 				if !cond.HandleReq(CtxReq(ctx), ctx) {
-					return resp
+					return resp, ctx
 				}
 			}
 			for _, cond := range pcond.respCond {
 				if !cond.HandleResp(resp, ctx) {
-					return resp
+					return resp, ctx
 				}
 			}
 			return h.Handle(resp, ctx)

@@ -81,7 +81,7 @@ func isEof(r *bufio.Reader) bool {
 func (proxy *ProxyHttpServer) filterRequest(r *http.Request, ctx context.Context) (req *http.Request, resp *http.Response) {
 	req = r
 	for _, h := range proxy.reqHandlers {
-		req, resp = h.Handle(r, ctx)
+		req, resp, ctx = h.Handle(r, ctx)
 		// non-nil resp means the handler decided to skip sending the request
 		// and return canned response instead.
 		if resp != nil {
@@ -94,7 +94,7 @@ func (proxy *ProxyHttpServer) filterResponse(respOrig *http.Response, ctx contex
 	resp = respOrig
 	for _, h := range proxy.respHandlers {
 		ctx = CtxWithResp(ctx, resp)
-		resp = h.Handle(resp, ctx)
+		resp, ctx = h.Handle(resp, ctx)
 	}
 	return
 }
