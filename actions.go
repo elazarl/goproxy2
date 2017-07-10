@@ -48,13 +48,13 @@ func (f FuncRespHandler) Handle(resp *http.Response, ctx context.Context) (*http
 // through the usual flow (request and response filtered through the ReqHandlers
 // and RespHandlers)
 type HttpsHandler interface {
-	HandleConnect(req string, ctx context.Context) (*ConnectAction, string)
+	HandleConnect(req string, ctx context.Context) (*ConnectAction, string, context.Context)
 }
 
 // A wrapper that would convert a function to a HttpsHandler interface type
-type FuncHttpsHandler func(host string, ctx context.Context) (*ConnectAction, string)
+type FuncHttpsHandler func(host string, ctx context.Context) (*ConnectAction, string, context.Context)
 
 // FuncHttpsHandler should implement the RespHandler interface
-func (f FuncHttpsHandler) HandleConnect(host string, ctx context.Context) (*ConnectAction, string) {
+func (f FuncHttpsHandler) HandleConnect(host string, ctx context.Context) (*ConnectAction, string, context.Context) {
 	return f(host, ctx)
 }

@@ -80,7 +80,8 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 	proxy.Loggers.Debug.Log("event", "connect handlers", "nhandlers", len(proxy.httpsHandlers))
 	todo, host := OkConnect, r.URL.Host
 	for i, h := range proxy.httpsHandlers {
-		newtodo, newhost := h.HandleConnect(host, ctx)
+		newtodo, newhost, ctx := h.HandleConnect(host, ctx)
+		var _ = ctx
 
 		// If found a result, break the loop immediately
 		if newtodo != nil {

@@ -438,9 +438,9 @@ func TestSimpleMitm(t *testing.T) {
 func TestConnectHandler(t *testing.T) {
 	proxy := goproxy.New()
 	althttps := httptest.NewTLSServer(ConstantHanlder("althttps"))
-	proxy.OnRequest().HandleConnectFunc(func(host string, ctx context.Context) (*goproxy.ConnectAction, string) {
+	proxy.OnRequest().HandleConnectFunc(func(host string, ctx context.Context) (*goproxy.ConnectAction, string, context.Context) {
 		u, _ := url.Parse(althttps.URL)
-		return goproxy.OkConnect, u.Host
+		return goproxy.OkConnect, u.Host, ctx
 	})
 
 	client, l := oneShotProxy(proxy, t)
@@ -718,8 +718,8 @@ func readConnectResponse(buf *bufio.Reader) {
 
 func TestCurlMinusP(t *testing.T) {
 	proxy := goproxy.New()
-	proxy.OnRequest().HandleConnectFunc(func(host string, ctx context.Context) (*goproxy.ConnectAction, string) {
-		return goproxy.HTTPMitmConnect, host
+	proxy.OnRequest().HandleConnectFunc(func(host string, ctx context.Context) (*goproxy.ConnectAction, string, context.Context) {
+		return goproxy.HTTPMitmConnect, host, ctx
 	})
 	called := false
 	proxy.OnRequest().DoFunc(func(req *http.Request, ctx context.Context) (*http.Request, *http.Response, context.Context) {
