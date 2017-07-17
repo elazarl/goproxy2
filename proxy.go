@@ -54,7 +54,7 @@ type ProxyHttpServer struct {
 	Tr              *http.Transport
 	// ConnectDial will be used to create TCP connections for CONNECT requests
 	// if nil Tr.Dial will be used
-	ConnectDial func(network string, addr string) (net.Conn, error)
+	ConnectDial func(ctx context.Context, network string, addr string) (net.Conn, error)
 }
 
 var hasPort = regexp.MustCompile(`:\d+$`)
@@ -78,8 +78,9 @@ func isEof(r *bufio.Reader) bool {
 	return false
 }
 
-func (proxy *ProxyHttpServer) filterRequest(r *http.Request, ctx context.Context) (req *http.Request, resp *http.Response) {
+func (proxy *ProxyHttpServer) filterRequest(r *http.Request, orig_ctx context.Context) (req *http.Request, resp *http.Response, ctx context.Context) {
 	req = r
+	ctx = orig_ctx
 	for _, h := range proxy.reqHandlers {
 		req, resp, ctx = h.Handle(r, ctx)
 		// non-nil resp means the handler decided to skip sending the request
@@ -132,12 +133,13 @@ func (proxy *ProxyHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 			proxy.NonproxyHandler.ServeHTTP(w, r)
 			return
 		}
-		r, resp := proxy.filterRequest(r, ctx)
+		r = r.WithContext(ctx)
+		r, resp, ctx := proxy.filterRequest(r, ctx)
 
 		if resp == nil {
 			removeProxyHeaders(ctx, r)
 			rt := CtxRoundTripper(ctx)
-			resp, err = rt.RoundTrip(r, ctx)
+			resp, err = rt.RoundTrip(r)
 			if err != nil {
 				ctx = CtxWithError(ctx, err)
 				resp = proxy.filterResponse(nil, ctx)
