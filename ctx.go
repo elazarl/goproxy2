@@ -44,21 +44,15 @@ func CtxReq(ctx context.Context) *http.Request {
 	}
 	return v
 }
-func CtxWithRoundTripper(ctx context.Context, rt RoundTripper) context.Context {
+func CtxWithRoundTripper(ctx context.Context, rt http.RoundTripper) context.Context {
 	return context.WithValue(ctx, ctxKeyRoundTripper, rt)
 }
 
-type transportRoundTripper struct{ tr *http.Transport }
-
-func (rt transportRoundTripper) RoundTrip(req *http.Request, ctx context.Context) (*http.Response, error) {
-	return rt.tr.RoundTrip(req)
-}
-
-func CtxRoundTripper(ctx context.Context) RoundTripper {
-	v, ok := ctx.Value(ctxKeyRoundTripper).(RoundTripper)
+func CtxRoundTripper(ctx context.Context) http.RoundTripper {
+	v, ok := ctx.Value(ctxKeyRoundTripper).(http.RoundTripper)
 	if !ok {
 		proxy := ctxProxy(ctx)
-		return transportRoundTripper{proxy.Tr}
+		return proxy.Tr
 	}
 	return v
 }
@@ -80,14 +74,4 @@ func ctxProxy(ctx context.Context) *ProxyHttpServer {
 		panic("required value in context missing")
 	}
 	return proxy
-}
-
-type RoundTripper interface {
-	RoundTrip(req *http.Request, ctx context.Context) (*http.Response, error)
-}
-
-type RoundTripperFunc func(req *http.Request, ctx context.Context) (*http.Response, error)
-
-func (f RoundTripperFunc) RoundTrip(req *http.Request, ctx context.Context) (*http.Response, error) {
-	return f(req, ctx)
 }
