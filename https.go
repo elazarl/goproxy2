@@ -144,7 +144,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			if err != nil {
 				return
 			}
-			req, resp := proxy.filterRequest(req, ctx)
+			req, resp, ctx := proxy.filterRequest(req, ctx)
 			if resp == nil {
 				if err := req.Write(targetSiteCon); err != nil {
 					proxy.httpError(proxyClient, err)
@@ -208,8 +208,9 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 				// Bug fix which goproxy fails to provide request
 				// information URL in the context when does HTTPS MITM
 				ctx = CtxWithReq(ctx, req)
+				req = req.WithContext(ctx)
 
-				req, resp := proxy.filterRequest(req, ctx)
+				req, resp, ctx := proxy.filterRequest(req, ctx)
 				if resp == nil {
 					if err != nil {
 						proxy.Loggers.Error.Log("event", "HTTP MITM request URL", "url", "https://"+r.Host+req.URL.Path, "error", err.Error())
