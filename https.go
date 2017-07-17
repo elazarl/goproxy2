@@ -218,7 +218,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 					}
 					removeProxyHeaders(ctx, req)
 					rt := CtxRoundTripper(ctx)
-					resp, err = rt.RoundTrip(req, ctx)
+					resp, err = rt.RoundTrip(req)
 					if err != nil {
 						proxy.Loggers.Error.Log("event", "HTTP MITM RoundTrip", "error", err.Error())
 						return
