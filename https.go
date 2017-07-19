@@ -104,12 +104,14 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 		proxy.Loggers.Debug.Log("event", "accept connect", "host", host)
 		proxyClient.Write([]byte("HTTP/1.0 200 OK\r\n\r\n"))
 
-		targetTCP, targetOK := targetSiteCon.(*net.TCPConn)
-		proxyClientTCP, clientOK := proxyClient.(*net.TCPConn)
+		targetTCP, targetOK := targetSiteCon.(CloseWriteReader)
+		proxyClientTCP, clientOK := proxyClient.(CloseWriteReader)
 		if targetOK && clientOK {
+			proxy.Loggers.Debug.Log("event", "connect", "type", "TCP")
 			go proxy.copyAndClose(targetTCP, proxyClientTCP)
 			go proxy.copyAndClose(proxyClientTCP, targetTCP)
 		} else {
+			proxy.Loggers.Debug.Log("event", "connect", "type", "reader")
 			go func() {
 				var wg sync.WaitGroup
 				wg.Add(2)
@@ -297,7 +299,13 @@ func (proxy *ProxyHttpServer) copyOrWarn(dst io.Writer, src io.Reader, wg *sync.
 	wg.Done()
 }
 
-func (proxy *ProxyHttpServer) copyAndClose(dst, src *net.TCPConn) {
+type CloseWriteReader interface {
+	io.ReadWriter
+	CloseWrite() error
+	CloseRead() error
+}
+
+func (proxy *ProxyHttpServer) copyAndClose(dst, src CloseWriteReader) {
 	if _, err := io.Copy(dst, src); err != nil {
 		proxy.Loggers.Error.Log("event", "io.Copy&Close", "error", err.Error())
 	}
