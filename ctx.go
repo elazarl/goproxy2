@@ -15,10 +15,9 @@ const (
 	ctxKeyProxy               = iota
 )
 
-func (proxy *ProxyHttpServer) newCtx(r *http.Request) context.Context {
-	ctx := context.WithValue(context.Background(), ctxKeyProxy, proxy)
-	ctx = context.WithValue(ctx, ctxKeyReq, r)
-	return ctx
+func (proxy *ProxyHttpServer) requestWithContext(r *http.Request) *http.Request {
+	ctx := context.WithValue(r.Context(), ctxKeyProxy, proxy)
+	return r.WithContext(ctx)
 }
 
 func CtxWithResp(ctx context.Context, r *http.Response) context.Context {

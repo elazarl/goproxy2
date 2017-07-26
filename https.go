@@ -38,8 +38,8 @@ var (
 
 type ConnectAction struct {
 	Action    ConnectActionLiteral
-	Hijack    func(req *http.Request, client net.Conn, ctx context.Context)
-	TLSConfig func(host string, ctx context.Context) (*tls.Config, error)
+	Hijack    func(req *http.Request, client net.Conn)
+	TLSConfig func(req *http.Request, host string) (*tls.Config, error)
 }
 
 func stripPort(s string) string {
@@ -65,7 +65,7 @@ func (proxy *ProxyHttpServer) connectDial(ctx context.Context, network, addr str
 }
 
 func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request) {
-	ctx := proxy.newCtx(r)
+	r = proxy.requestWithContext(r)
 
 	hij, ok := w.(http.Hijacker)
 	if !ok {
@@ -80,8 +80,8 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 	proxy.Loggers.Debug.Log("event", "connect handlers", "nhandlers", len(proxy.httpsHandlers))
 	todo, host := OkConnect, r.URL.Host
 	for i, h := range proxy.httpsHandlers {
-		newtodo, newhost, ctx := h.HandleConnect(host, ctx)
-		var _ = ctx
+		req, newtodo, newhost := h.HandleConnect(r, host)
+		r = req
 
 		// If found a result, break the loop immediately
 		if newtodo != nil {
@@ -95,7 +95,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 		if !hasPort.MatchString(host) {
 			host += ":80"
 		}
-		targetSiteCon, err := proxy.connectDial(ctx, "tcp", host)
+		targetSiteCon, err := proxy.connectDial(r.Context(), "tcp", host)
 		if err != nil {
 			proxy.Loggers.Error.Log("event", "accept connect error", "host", host, "error", err.Error())
 			proxy.httpError(proxyClient, err)
@@ -127,11 +127,11 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 	case ConnectHijack:
 		proxy.Loggers.Debug.Log("event", "hijack connect", "host", host)
 		proxyClient.Write([]byte("HTTP/1.0 200 OK\r\n\r\n"))
-		todo.Hijack(r, proxyClient, ctx)
+		todo.Hijack(r, proxyClient)
 	case ConnectHTTPMitm:
 		proxy.Loggers.Debug.Log("event", "connect HTTP MITM", "host", host)
 		proxyClient.Write([]byte("HTTP/1.0 200 OK\r\n\r\n"))
-		targetSiteCon, err := proxy.connectDial(ctx, "tcp", host)
+		targetSiteCon, err := proxy.connectDial(r.Context(), "tcp", host)
 		if err != nil {
 			proxy.Loggers.Error.Log("event", "mitm error dial", "host", host, "error", err.Error())
 			return
@@ -146,7 +146,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			if err != nil {
 				return
 			}
-			req, resp, ctx := proxy.filterRequest(req, ctx)
+			req, resp := proxy.filterRequest(req)
 			if resp == nil {
 				if err := req.Write(targetSiteCon); err != nil {
 					proxy.httpError(proxyClient, err)
@@ -159,7 +159,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 				}
 				defer resp.Body.Close()
 			}
-			resp = proxy.filterResponse(resp, ctx)
+			req, resp = proxy.filterResponse(req, resp)
 			if err := resp.Write(proxyClient); err != nil {
 				proxy.httpError(proxyClient, err)
 				return
@@ -175,7 +175,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 		tlsConfig := defaultTLSConfig
 		if todo.TLSConfig != nil {
 			var err error
-			tlsConfig, err = todo.TLSConfig(host, ctx)
+			tlsConfig, err = todo.TLSConfig(r, host)
 			if err != nil {
 				proxy.httpError(proxyClient, err)
 				return
@@ -192,7 +192,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			clientTlsReader := bufio.NewReader(rawClientTls)
 			for !isEof(clientTlsReader) {
 				req, err := http.ReadRequest(clientTlsReader)
-				var ctx = proxy.newCtx(req)
+				req = proxy.requestWithContext(req)
 				if err != nil && err != io.EOF {
 					return
 				}
@@ -207,19 +207,14 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 					req.URL, err = url.Parse("https://" + r.Host + req.URL.String())
 				}
 
-				// Bug fix which goproxy fails to provide request
-				// information URL in the context when does HTTPS MITM
-				ctx = CtxWithReq(ctx, req)
-				req = req.WithContext(ctx)
-
-				req, resp, ctx := proxy.filterRequest(req, ctx)
+				req, resp := proxy.filterRequest(req)
 				if resp == nil {
 					if err != nil {
 						proxy.Loggers.Error.Log("event", "HTTP MITM request URL", "url", "https://"+r.Host+req.URL.Path, "error", err.Error())
 						return
 					}
-					removeProxyHeaders(ctx, req)
-					rt := CtxRoundTripper(ctx)
+					removeProxyHeaders(req)
+					rt := CtxRoundTripper(req.Context())
 					resp, err = rt.RoundTrip(req)
 					if err != nil {
 						proxy.Loggers.Error.Log("event", "HTTP MITM RoundTrip", "error", err.Error())
@@ -227,7 +222,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 					}
 					proxy.Loggers.Debug.Log("event", "TLS MITM resp", "host", r.Host, "status", resp.Status)
 				}
-				resp = proxy.filterResponse(resp, ctx)
+				req, resp = proxy.filterResponse(req, resp)
 				defer resp.Body.Close()
 
 				text := resp.Status
@@ -272,10 +267,10 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 		}()
 	case ConnectProxyAuthHijack:
 		proxyClient.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\n"))
-		todo.Hijack(r, proxyClient, ctx)
+		todo.Hijack(r, proxyClient)
 	case ConnectReject:
-		if CtxResp(ctx) != nil {
-			if err := CtxResp(ctx).Write(proxyClient); err != nil {
+		if CtxResp(r.Context()) != nil {
+			if err := CtxResp(r.Context()).Write(proxyClient); err != nil {
 				proxy.Loggers.Error.Log("event", "HTTP CONNECT reject write", "error", err.Error())
 			}
 		}
@@ -408,8 +403,8 @@ func (proxy *ProxyHttpServer) NewConnectDialToProxy(https_proxy string) func(ctx
 	return nil
 }
 
-func TLSConfigFromCA(ca *tls.Certificate) func(host string, ctx context.Context) (*tls.Config, error) {
-	return func(host string, ctx context.Context) (*tls.Config, error) {
+func TLSConfigFromCA(ca *tls.Certificate) func(req *http.Request, host string) (*tls.Config, error) {
+	return func(req *http.Request, host string) (*tls.Config, error) {
 		config := *defaultTLSConfig
 		cert, err := signHost(*ca, []string{stripPort(host)})
 		if err != nil {

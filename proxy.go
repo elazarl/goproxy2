@@ -78,11 +78,10 @@ func isEof(r *bufio.Reader) bool {
 	return false
 }
 
-func (proxy *ProxyHttpServer) filterRequest(r *http.Request, orig_ctx context.Context) (req *http.Request, resp *http.Response, ctx context.Context) {
+func (proxy *ProxyHttpServer) filterRequest(r *http.Request) (req *http.Request, resp *http.Response) {
 	req = r
-	ctx = orig_ctx
 	for _, h := range proxy.reqHandlers {
-		req, resp, ctx = h.Handle(r, ctx)
+		req, resp = h.Handle(r)
 		// non-nil resp means the handler decided to skip sending the request
 		// and return canned response instead.
 		if resp != nil {
@@ -91,16 +90,14 @@ func (proxy *ProxyHttpServer) filterRequest(r *http.Request, orig_ctx context.Co
 	}
 	return
 }
-func (proxy *ProxyHttpServer) filterResponse(respOrig *http.Response, ctx context.Context) (resp *http.Response) {
-	resp = respOrig
+func (proxy *ProxyHttpServer) filterResponse(req *http.Request, resp *http.Response) (*http.Request, *http.Response) {
 	for _, h := range proxy.respHandlers {
-		ctx = CtxWithResp(ctx, resp)
-		resp, ctx = h.Handle(resp, ctx)
+		req, resp = h.Handle(req, resp)
 	}
-	return
+	return req, resp
 }
 
-func removeProxyHeaders(ctx context.Context, r *http.Request) {
+func removeProxyHeaders(r *http.Request) {
 	r.RequestURI = "" // this must be reset when serving a request with the client
 	// If no Accept-Encoding header exists, Transport will add the headers it can accept
 	// and would wrap the response body with the relevant reader.
@@ -125,7 +122,7 @@ func (proxy *ProxyHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	if r.Method == "CONNECT" {
 		proxy.handleHttps(w, r)
 	} else {
-		ctx := proxy.newCtx(r)
+		r = proxy.requestWithContext(r)
 
 		var err error
 		proxy.Loggers.Debug.Log("event", "request", "path", r.URL.Path, "host", r.Host, "method", r.Method, "url", r.URL.String())
@@ -133,16 +130,15 @@ func (proxy *ProxyHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 			proxy.NonproxyHandler.ServeHTTP(w, r)
 			return
 		}
-		r = r.WithContext(ctx)
-		r, resp, ctx := proxy.filterRequest(r, ctx)
+		r, resp := proxy.filterRequest(r)
 
 		if resp == nil {
-			removeProxyHeaders(ctx, r)
-			rt := CtxRoundTripper(ctx)
+			removeProxyHeaders(r)
+			rt := CtxRoundTripper(r.Context())
 			resp, err = rt.RoundTrip(r)
 			if err != nil {
-				ctx = CtxWithError(ctx, err)
-				resp = proxy.filterResponse(nil, ctx)
+				r = r.WithContext(CtxWithError(r.Context(), err))
+				r, resp = proxy.filterResponse(r, nil)
 				if resp == nil {
 					proxy.Loggers.Error.Log("event", "read response", "error", err.Error())
 					http.Error(w, err.Error(), 500)
@@ -152,7 +148,7 @@ func (proxy *ProxyHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 			proxy.Loggers.Debug.Log("event", "response", "status", resp.Status)
 		}
 		origBody := resp.Body
-		resp = proxy.filterResponse(resp, ctx)
+		r, resp = proxy.filterResponse(r, resp)
 		defer origBody.Close()
 		proxy.Loggers.Debug.Log("event", "before copy response", "status", resp.Status)
 		// http.ResponseWriter will take care of filling the correct response length
