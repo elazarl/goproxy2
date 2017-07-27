@@ -13,6 +13,7 @@ const (
 	ctxKeyRoundTripper        = iota
 	ctxKeyError               = iota
 	ctxKeyProxy               = iota
+	ctxKeyConnect             = iota
 )
 
 func (proxy *ProxyHttpServer) requestWithContext(r *http.Request) *http.Request {
@@ -22,6 +23,17 @@ func (proxy *ProxyHttpServer) requestWithContext(r *http.Request) *http.Request 
 
 func CtxWithResp(ctx context.Context, r *http.Response) context.Context {
 	return context.WithValue(ctx, ctxKeyResp, r)
+}
+func ctxWithConnectRequest(ctx context.Context, r *http.Request) context.Context {
+	return context.WithValue(ctx, ctxKeyConnect, r)
+}
+
+func CtxConnectRequest(ctx context.Context) *http.Request {
+	v, ok := ctx.Value(ctxKeyConnect).(*http.Request)
+	if !ok {
+		return nil
+	}
+	return v
 }
 
 func CtxResp(ctx context.Context) *http.Response {

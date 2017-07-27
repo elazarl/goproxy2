@@ -140,6 +140,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			client := bufio.NewReader(proxyClient)
 			remote := bufio.NewReader(targetSiteCon)
 			req, err := http.ReadRequest(client)
+			req = req.WithContext(ctxWithConnectRequest(req.Context(), r))
 			if err != nil && err != io.EOF {
 				proxy.Loggers.Error.Log("event", "HTTP MITM ReadRequest", "error", err.Error())
 			}
@@ -193,6 +194,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			for !isEof(clientTlsReader) {
 				req, err := http.ReadRequest(clientTlsReader)
 				req = proxy.requestWithContext(req)
+				req = req.WithContext(ctxWithConnectRequest(req.Context(), r))
 				if err != nil && err != io.EOF {
 					return
 				}
