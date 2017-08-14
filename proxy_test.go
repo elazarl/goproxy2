@@ -18,8 +18,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/elazarl/goproxy2"
-	"github.com/elazarl/goproxy2/ext/image"
+	"github.com/toebes/goproxy2"
+	"github.com/toebes/goproxy2/ext/image"
 )
 
 var acceptAllCerts = &tls.Config{InsecureSkipVerify: true}

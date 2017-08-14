@@ -13,15 +13,16 @@ type ReqHandler interface {
 	Handle(req *http.Request) (*http.Request, *http.Response)
 }
 
-// A wrapper that would convert a function to a ReqHandler interface type
+// FuncReqHandler is a wrapper that converts a function to a ReqHandler interface type
 type FuncReqHandler func(req *http.Request) (*http.Request, *http.Response)
 
-// FuncReqHandler.Handle(req) <=> FuncReqHandler(req)
+// Handle wraps the HTTP handler FuncReqHandler.Handle(req) <=> FuncReqHandler(req)
 func (f FuncReqHandler) Handle(req *http.Request) (*http.Request, *http.Response) {
 	return f(req)
 }
 
-// after the proxy have sent the request to the destination server, it will
+// RespHandler wraps the response.
+// After the proxy have sent the request to the destination server, it will
 // "filter" the response through the RespHandlers it has.
 // The proxy server will send to the client the response returned by the RespHandler.
 // In case of error, resp will be nil, and ctx.RoundTrip.Error will contain the error
@@ -29,14 +30,15 @@ type RespHandler interface {
 	Handle(req *http.Request, resp *http.Response) (*http.Request, *http.Response)
 }
 
-// A wrapper that would convert a function to a RespHandler interface type
+// FuncRespHandler is a wrapper that would convert a function to a RespHandler interface type
 type FuncRespHandler func(req *http.Request, resp *http.Response) (*http.Request, *http.Response)
 
-// FuncRespHandler.Handle(req) <=> FuncRespHandler(req)
+// Handle wraps the HTTP response FuncRespHandler.Handle(req) <=> FuncRespHandler(req)
 func (f FuncRespHandler) Handle(req *http.Request, resp *http.Response) (*http.Request, *http.Response) {
 	return f(req, resp)
 }
 
+// HTTPSHandler wraps the HTTPS requests
 // When a client send a CONNECT request to a host, the request is filtered through
 // all the HttpsHandlers the proxy has, and if one returns true, the connection is
 // sniffed using Man in the Middle attack.
@@ -46,14 +48,16 @@ func (f FuncRespHandler) Handle(req *http.Request, resp *http.Response) (*http.R
 // The request and responses sent in this Man In the Middle channel are filtered
 // through the usual flow (request and response filtered through the ReqHandlers
 // and RespHandlers)
-type HttpsHandler interface {
+type HTTPSHandler interface {
 	HandleConnect(req *http.Request, host string) (*http.Request, *ConnectAction, string)
 }
 
-// A wrapper that would convert a function to a HttpsHandler interface type
-type FuncHttpsHandler func(req *http.Request, host string) (*http.Request, *ConnectAction, string)
+// FuncHTTPSHandlers wraps HTTPS Handlers
+// A wrapper that would convert a function to a HTTPSHandler interface type
+type FuncHTTPSHandlers func(req *http.Request, host string) (*http.Request, *ConnectAction, string)
 
-// FuncHttpsHandler should implement the RespHandler interface
-func (f FuncHttpsHandler) HandleConnect(req *http.Request, host string) (*http.Request, *ConnectAction, string) {
+// HandleConnect wraps the handler interface
+// FuncHTTPSHandlers should implement the RespHandler interface
+func (f FuncHTTPSHandlers) HandleConnect(req *http.Request, host string) (*http.Request, *ConnectAction, string) {
 	return f(req, host)
 }

@@ -50,7 +50,7 @@ type ProxyHttpServer struct {
 	NonproxyHandler http.Handler
 	reqHandlers     []ReqHandler
 	respHandlers    []RespHandler
-	httpsHandlers   []HttpsHandler
+	httpsHandlers   []HTTPSHandler
 	Tr              *http.Transport
 	// ConnectDial will be used to create TCP connections for CONNECT requests
 	// if nil Tr.Dial will be used
@@ -176,7 +176,7 @@ func New() *ProxyHttpServer {
 		Loggers:       ErrorLogger,
 		reqHandlers:   []ReqHandler{},
 		respHandlers:  []RespHandler{},
-		httpsHandlers: []HttpsHandler{},
+		httpsHandlers: []HTTPSHandler{},
 		NonproxyHandler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, "This is a proxy server. Does not respond to non-proxy requests.", 500)
 		}),

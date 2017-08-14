@@ -1,11 +1,12 @@
-// Taken from $GOROOT/src/pkg/net/http/chunked
-// needed to write https responses to client.
 package goproxy
 
 import (
 	"io"
 	"strconv"
 )
+
+// Taken from $GOROOT/src/pkg/net/http/chunked
+// needed to write https responses to client.
 
 // newChunkedWriter returns a new chunkedWriter that translates writes into HTTP
 // "chunked" format before writing them to w. Closing the returned chunkedWriter

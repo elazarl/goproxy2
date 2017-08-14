@@ -15,19 +15,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/elazarl/goproxy2"
-	"github.com/elazarl/goproxy2/transport"
+	"github.com/toebes/goproxy2"
+	"github.com/toebes/goproxy2/transport"
 )
 
+// FileStream tracks an output file by the name of the file and the open file handle
 type FileStream struct {
 	path string
 	f    *os.File
 }
 
+// NewFileStream creates a new FileStream for a given path but with the file not yet opened
 func NewFileStream(path string) *FileStream {
 	return &FileStream{path, nil}
 }
 
+// Write writes a set of bytes to a FileStream
 func (fs *FileStream) Write(b []byte) (nr int, err error) {
 	if fs.f == nil {
 		fs.f, err = os.Create(fs.path)
@@ -38,6 +41,7 @@ func (fs *FileStream) Write(b []byte) (nr int, err error) {
 	return fs.f.Write(b)
 }
 
+// Close closes a FileStream
 func (fs *FileStream) Close() error {
 	fmt.Println("Close", fs.path)
 	if fs.f == nil {
@@ -46,12 +50,13 @@ func (fs *FileStream) Close() error {
 	return fs.f.Close()
 }
 
+// Meta holds all the information about a Request/Response
 type Meta struct {
 	req      *http.Request
 	resp     *http.Response
 	err      error
 	t        time.Time
-	sess     int64
+	session  int64
 	bodyPath string
 	from     string
 }
@@ -74,6 +79,7 @@ func write(nr *int64, err *error, w io.Writer, b []byte) {
 	*nr += int64(n)
 }
 
+// WriteTo dumps the data about an open stream to a file
 func (m *Meta) WriteTo(w io.Writer) (nr int64, err error) {
 	if m.req != nil {
 		fprintf(&nr, &err, w, "Type: request\r\n")
@@ -81,7 +87,7 @@ func (m *Meta) WriteTo(w io.Writer) (nr int64, err error) {
 		fprintf(&nr, &err, w, "Type: response\r\n")
 	}
 	fprintf(&nr, &err, w, "ReceivedAt: %v\r\n", m.t)
-	fprintf(&nr, &err, w, "Session: %d\r\n", m.sess)
+	fprintf(&nr, &err, w, "Session: %d\r\n", m.session)
 	fprintf(&nr, &err, w, "From: %v\r\n", m.from)
 	if m.err != nil {
 		// note the empty response
@@ -104,34 +110,36 @@ func (m *Meta) WriteTo(w io.Writer) (nr int64, err error) {
 	return
 }
 
-// HttpLogger is an asynchronous HTTP request/response logger. It traces
+// HTTPLogger is an asynchronous HTTP request/response logger. It traces
 // requests and responses headers in a "log" file in logger directory and dumps
 // their bodies in files prefixed with the session identifiers.
 // Close it to ensure pending items are correctly logged.
-type HttpLogger struct {
-	path  string
-	c     chan *Meta
-	errch chan error
+type HTTPLogger struct {
+	path    string
+	c       chan *Meta
+	errChan chan error
 }
 
-func NewLogger(basepath string) (*HttpLogger, error) {
+// NewLogger creates a new logger for a given path
+func NewLogger(basepath string) (*HTTPLogger, error) {
 	f, err := os.Create(path.Join(basepath, "log"))
 	if err != nil {
 		return nil, err
 	}
-	logger := &HttpLogger{basepath, make(chan *Meta), make(chan error)}
+	logger := &HTTPLogger{basepath, make(chan *Meta), make(chan error)}
 	go func() {
 		for m := range logger.c {
 			if _, err := m.WriteTo(f); err != nil {
 				log.Println("Can't write meta", err)
 			}
 		}
-		logger.errch <- f.Close()
+		logger.errChan <- f.Close()
 	}()
 	return logger, nil
 }
 
-func (logger *HttpLogger) LogResp(resp *http.Response, ctx *goproxy.ProxyCtx) {
+// LogResp dumps out the response from a logged session
+func (logger *HTTPLogger) LogResp(resp *http.Response) {
 	body := path.Join(logger.path, fmt.Sprintf("%d_resp", ctx.Session))
 	from := ""
 	if ctx.UserData != nil {
@@ -143,17 +151,18 @@ func (logger *HttpLogger) LogResp(resp *http.Response, ctx *goproxy.ProxyCtx) {
 		resp.Body = NewTeeReadCloser(resp.Body, NewFileStream(body))
 	}
 	logger.LogMeta(&Meta{
-		resp: resp,
-		err:  ctx.Error,
-		t:    time.Now(),
-		sess: ctx.Session,
-		from: from})
+		resp:    resp,
+		err:     ctx.Error,
+		t:       time.Now(),
+		session: ctx.Session,
+		from:    from})
 }
 
 var emptyResp = &http.Response{}
 var emptyReq = &http.Request{}
 
-func (logger *HttpLogger) LogReq(req *http.Request, ctx *goproxy.ProxyCtx) {
+// LogReq dumps out the request for a logged session
+func (logger *HTTPLogger) LogReq(req *http.Request, ctx *goproxy.ProxyCtx) {
 	body := path.Join(logger.path, fmt.Sprintf("%d_req", ctx.Session))
 	if req == nil {
 		req = emptyReq
@@ -161,20 +170,22 @@ func (logger *HttpLogger) LogReq(req *http.Request, ctx *goproxy.ProxyCtx) {
 		req.Body = NewTeeReadCloser(req.Body, NewFileStream(body))
 	}
 	logger.LogMeta(&Meta{
-		req:  req,
-		err:  ctx.Error,
-		t:    time.Now(),
-		sess: ctx.Session,
-		from: req.RemoteAddr})
+		req:     req,
+		err:     ctx.Error,
+		t:       time.Now(),
+		session: ctx.Session,
+		from:    req.RemoteAddr})
 }
 
-func (logger *HttpLogger) LogMeta(m *Meta) {
+// LogMeta associates the meta data with a given Logger channel
+func (logger *HTTPLogger) LogMeta(m *Meta) {
 	logger.c <- m
 }
 
-func (logger *HttpLogger) Close() error {
+// Close closes down a logger channel
+func (logger *HTTPLogger) Close() error {
 	close(logger.c)
-	return <-logger.errch
+	return <-logger.errChan
 }
 
 // TeeReadCloser extends io.TeeReader by allowing reader and writer to be
@@ -185,6 +196,7 @@ type TeeReadCloser struct {
 	c io.Closer
 }
 
+// NewTeeReadCloser creates a TeeReadCloser
 func NewTeeReadCloser(r io.ReadCloser, w io.WriteCloser) io.ReadCloser {
 	return &TeeReadCloser{io.TeeReader(r, w), w, r}
 }

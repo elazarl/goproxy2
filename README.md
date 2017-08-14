@@ -57,7 +57,7 @@ To get a taste of `goproxy`, a basic HTTP/HTTPS transparent proxy
 package main
 
 import (
-    "github.com/elazarl/goproxy2"
+    "github.com/toebes/goproxy2"
     "log"
     "net/http"
 )

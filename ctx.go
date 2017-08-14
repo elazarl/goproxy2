@@ -9,11 +9,11 @@ type ctxKey int
 
 const (
 	ctxKeyReq          ctxKey = iota
-	ctxKeyResp                = iota
-	ctxKeyRoundTripper        = iota
-	ctxKeyError               = iota
-	ctxKeyProxy               = iota
-	ctxKeyConnect             = iota
+	ctxKeyResp         ctxKey = iota
+	ctxKeyRoundTripper ctxKey = iota
+	ctxKeyError        ctxKey = iota
+	ctxKeyProxy        ctxKey = iota
+	ctxKeyConnect      ctxKey = iota
 )
 
 func (proxy *ProxyHttpServer) requestWithContext(r *http.Request) *http.Request {

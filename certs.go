@@ -21,7 +21,8 @@ var defaultTLSConfig = &tls.Config{
 	InsecureSkipVerify: true,
 }
 
-var CA_CERT = []byte(`-----BEGIN CERTIFICATE-----
+// CACert is the certificate for proxying HTTPs connections
+var CACert = []byte(`-----BEGIN CERTIFICATE-----
 MIIF9DCCA9ygAwIBAgIJAODqYUwoVjJkMA0GCSqGSIb3DQEBCwUAMIGOMQswCQYD
 VQQGEwJJTDEPMA0GA1UECAwGQ2VudGVyMQwwCgYDVQQHDANMb2QxEDAOBgNVBAoM
 B0dvUHJveHkxEDAOBgNVBAsMB0dvUHJveHkxGjAYBgNVBAMMEWdvcHJveHkuZ2l0
@@ -56,7 +57,8 @@ NCNwK5Yl6HuvF97CIH5CdgO+5C7KifUtqTOL8pQKbNwy0S3sNYvB+njGvRpR7pKV
 BUnFpB/Atptqr4CUlTXrc5IPLAqAfmwk5IKcwy3EXUbruf9Dwz69YA==
 -----END CERTIFICATE-----`)
 
-var CA_KEY = []byte(`-----BEGIN RSA PRIVATE KEY-----
+// CAKey is the private key for proxying HTTPS connections
+var CAKey = []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIJKAIBAAKCAgEAnhDL4fqGGhjWzRBFy8iHGuNIdo79FtoWPevCpyek6AWrTuBF
 0j3dzRMUpAkemC/p94tGES9f9iWUVi7gnfmUz1lxhjiqUoW5K1xfwmbx+qmC2YAw
 HM+yq2oOLwz1FAYoQ3NT0gU6cJXtIB6Hjmxwy4jfDPzCuMFwfvOq4eS+pRJhnPTf
@@ -108,4 +110,5 @@ cj/azKBaT04IOMLaN8xfSqitJYSraWMVNgGJM5vfcVaivZnNh0lZBv+qu6YkdM88
 4/avCJ8IutT+FcMM+GbGazOm5ALWqUyhrnbLGc4CQMPfe7Il6NxwcrOxT8w=
 -----END RSA PRIVATE KEY-----`)
 
-var GoproxyCa, goproxyCaErr = tls.X509KeyPair(CA_CERT, CA_KEY)
+// GoproxyCa holds the Proxy Certificate
+var GoproxyCa, goproxyCaErr = tls.X509KeyPair(CACert, CAKey)

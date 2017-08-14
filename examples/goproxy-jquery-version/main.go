@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/elazarl/goproxy2"
-	"github.com/elazarl/goproxy2/ext/html"
+	"github.com/toebes/goproxy2"
+	"github.com/toebes/goproxy2/ext/html"
 )
 
 var (

@@ -288,18 +288,18 @@ func (t *Transport) getIdleConn(cm *connectMethod) (pconn *persistConn) {
 	}
 	key := cm.String()
 	for {
-		pconns, ok := t.idleConn[key]
+		pConns, ok := t.idleConn[key]
 		if !ok {
 			return nil
 		}
-		if len(pconns) == 1 {
-			pconn = pconns[0]
+		if len(pConns) == 1 {
+			pconn = pConns[0]
 			delete(t.idleConn, key)
 		} else {
 			// 2 or more cached connections; pop last
 			// TODO: queue?
-			pconn = pconns[len(pconns)-1]
-			t.idleConn[key] = pconns[0 : len(pconns)-1]
+			pconn = pConns[len(pConns)-1]
+			t.idleConn[key] = pConns[0 : len(pConns)-1]
 		}
 		if !pconn.isBroken() {
 			return
