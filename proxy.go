@@ -13,39 +13,48 @@ import (
 
 type emptyLogger struct{}
 
+// NopLogger is an empty logger that does nothing
 var NopLogger = emptyLogger{}
 
-func (_ emptyLogger) Log(keyvals ...interface{}) error { return nil }
+func (emptyLogger) Log(keyvals ...interface{}) error { return nil }
 
+// Logger is the interface for logging
 // borrowed from github.com/go-kit/kit log
 type Logger interface {
 	Log(keyvals ...interface{}) error
 }
 
-type WriterLogger struct{ Writer io.Writer }
+// WriterLogger has the Log interface and a file to write to
+type WriterLogger struct {
+	Writer io.Writer
+}
 
+// StderrLogger writes to the Stderr stream
 var StderrLogger = WriterLogger{os.Stderr}
 
+// Log takes a series of keywords separated by , and outputs them to the file
 func (w WriterLogger) Log(keyvals ...interface{}) error {
 	_, err := fmt.Fprintln(w.Writer, keyvals...)
 	return err
 }
 
+// ErrorLogger is used when only errors are output to Stderr and all debug messages go to /dev/null
 var ErrorLogger = Loggers{Error: StderrLogger, Debug: NopLogger}
-var VerboseLogger = Loggers{Error: StderrLogger, Debug: NopLogger}
 
+// VerboseLogger outputs debug messages and Error messages to Stderr
+var VerboseLogger = Loggers{Error: StderrLogger, Debug: StderrLogger}
+
+// Loggers is the collection of the error and debug logger routines
 type Loggers struct {
 	Error Logger
 	Debug Logger
 }
 
-// The basic proxy type. Implements http.Handler.
+// ProxyHttpServer is the basic proxy type. Implements http.Handler.
 type ProxyHttpServer struct {
 	// session variable must be aligned in i386
 	// see http://golang.org/src/pkg/sync/atomic/doc.go#L41
-	sess int64
-	// setting Verbose to true will log information on each request sent to the proxy
-	Verbose         bool
+	sess            int64
 	Loggers         Loggers
 	NonproxyHandler http.Handler
 	reqHandlers     []ReqHandler
@@ -60,7 +69,7 @@ type ProxyHttpServer struct {
 var hasPort = regexp.MustCompile(`:\d+$`)
 
 func copyHeaders(dst, src http.Header) {
-	for k, _ := range dst {
+	for k := range dst {
 		dst.Del(k)
 	}
 	for k, vs := range src {
@@ -76,6 +85,15 @@ func isEof(r *bufio.Reader) bool {
 		return true
 	}
 	return false
+}
+
+// Verbose to true will log information on each request sent to the proxy
+func (proxy *ProxyHttpServer) Verbose(verbose bool) {
+	if verbose {
+		proxy.Loggers = VerboseLogger
+	} else {
+		proxy.Loggers = ErrorLogger
+	}
 }
 
 func (proxy *ProxyHttpServer) filterRequest(r *http.Request) (req *http.Request, resp *http.Response) {
@@ -99,6 +117,7 @@ func (proxy *ProxyHttpServer) filterResponse(req *http.Request, resp *http.Respo
 
 func removeProxyHeaders(r *http.Request) {
 	r.RequestURI = "" // this must be reset when serving a request with the client
+	CtxDebugLog(r, "event", "sending-request", "method", r.Method, "url", r.URL.String())
 	// If no Accept-Encoding header exists, Transport will add the headers it can accept
 	// and would wrap the response body with the relevant reader.
 	r.Header.Del("Accept-Encoding")
@@ -134,10 +153,10 @@ func (proxy *ProxyHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 		if resp == nil {
 			removeProxyHeaders(r)
-			rt := CtxRoundTripper(r.Context())
+			rt := CtxRoundTripper(r)
 			resp, err = rt.RoundTrip(r)
 			if err != nil {
-				r = r.WithContext(CtxWithError(r.Context(), err))
+				r = SetCtxError(r, err)
 				r, resp = proxy.filterResponse(r, nil)
 				if resp == nil {
 					proxy.Loggers.Error.Log("event", "read response", "error", err.Error())

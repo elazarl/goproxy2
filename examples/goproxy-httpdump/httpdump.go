@@ -122,10 +122,12 @@ type HTTPLogger struct {
 
 // NewLogger creates a new logger for a given path
 func NewLogger(basepath string) (*HTTPLogger, error) {
+	// Create the log that we will be appending to
 	f, err := os.Create(path.Join(basepath, "log"))
 	if err != nil {
 		return nil, err
 	}
+	// Spawn the logger process to consume and output the data
 	logger := &HTTPLogger{basepath, make(chan *Meta), make(chan error)}
 	go func() {
 		for m := range logger.c {
@@ -139,7 +141,8 @@ func NewLogger(basepath string) (*HTTPLogger, error) {
 }
 
 // LogResp dumps out the response from a logged session
-func (logger *HTTPLogger) LogResp(resp *http.Response) {
+func (logger *HTTPLogger) LogResp(req *http.Request, resp *http.Response) {
+	ctx := goproxy.GetAnyProxyCtx(req)
 	body := path.Join(logger.path, fmt.Sprintf("%d_resp", ctx.Session))
 	from := ""
 	if ctx.UserData != nil {
@@ -162,7 +165,8 @@ var emptyResp = &http.Response{}
 var emptyReq = &http.Request{}
 
 // LogReq dumps out the request for a logged session
-func (logger *HTTPLogger) LogReq(req *http.Request, ctx *goproxy.ProxyCtx) {
+func (logger *HTTPLogger) LogReq(req *http.Request) {
+	ctx := goproxy.GetAnyProxyCtx(req)
 	body := path.Join(logger.path, fmt.Sprintf("%d_req", ctx.Session))
 	if req == nil {
 		req = emptyReq
@@ -247,33 +251,37 @@ func (sc *stoppableConn) Close() error {
 }
 
 func main() {
-	verbose := flag.Bool("v", false, "should every proxy request be logged to stdout")
+	verbose := flag.Bool("v", true, "should every proxy request be logged to stdout")
 	addr := flag.String("l", ":8080", "on which address should the proxy listen")
 	flag.Parse()
 	proxy := goproxy.New()
-	proxy.Verbose = *verbose
+	proxy.Verbose(*verbose)
+
+	// Create a directory to hold all the logger files
 	if err := os.MkdirAll("db", 0755); err != nil {
 		log.Fatal("Can't create dir", err)
 	}
+	// Make sure we can utilize the maximum number of processes for multi-threading
+	//runtime.GOMAXPROCS(runtime.NumCPU())
+
+	// Start up the logger process
 	logger, err := NewLogger("db")
 	if err != nil {
 		log.Fatal("can't open log file", err)
 	}
-	tr := transport.Transport{Proxy: transport.ProxyFromEnvironment}
+	//tr := transport.Transport{Proxy: transport.ProxyFromEnvironment}
 	// For every incoming request, override the RoundTripper to extract
-	// connection information. Store it is session context log it after
+	// connection information. Store it in a session context so we can log it after
 	// handling the response.
-	proxy.OnRequest().DoFunc(func(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
-		ctx.RoundTripper = goproxy.RoundTripperFunc(func(req *http.Request, ctx *goproxy.ProxyCtx) (resp *http.Response, err error) {
-			ctx.UserData, resp, err = tr.DetailedRoundTrip(req)
-			return
-		})
-		logger.LogReq(req, ctx)
+	proxy.OnRequest().DoFunc(func(req *http.Request) (*http.Request, *http.Response) {
+		//	ctx := goproxy.GetAnyProxyCtx(req)
+		//	ctx.RoundTripper = &tr
+		logger.LogReq(req)
 		return req, nil
 	})
-	proxy.OnResponse().DoFunc(func(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
-		logger.LogResp(resp, ctx)
-		return resp
+	proxy.OnResponse().DoFunc(func(req *http.Request, resp *http.Response) (*http.Request, *http.Response) {
+		logger.LogResp(req, resp)
+		return nil, resp
 	})
 	l, err := net.Listen("tcp", *addr)
 	if err != nil {

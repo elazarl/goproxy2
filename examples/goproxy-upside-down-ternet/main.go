@@ -23,6 +23,6 @@ func main() {
 		}
 		return nimg
 	}))
-	proxy.Verbose = true
+	proxy.Verbose(true)
 	log.Fatal(http.ListenAndServe(":8080", proxy))
 }

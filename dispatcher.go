@@ -7,24 +7,24 @@ import (
 	"strings"
 )
 
-// ReqCondition.HandleReq will decide whether or not to use the ReqHandler on an HTTP request
+// ReqCondition HandleReq will decide whether or not to use the ReqHandler on an HTTP request
 // before sending it to the remote server
 type ReqCondition interface {
 	RespCondition
 	HandleReq(req *http.Request) bool
 }
 
-// RespCondition.HandleReq will decide whether or not to use the RespHandler on an HTTP response
+// RespCondition HandleResp will decide whether or not to use the RespHandler on an HTTP response
 // before sending it to the proxy client. Note that resp might be nil, in case there was an
 // error sending the request.
 type RespCondition interface {
 	HandleResp(req *http.Request, resp *http.Response) bool
 }
 
-// ReqConditionFunc.HandleReq(req) <=> ReqConditionFunc(req)
+// ReqConditionFunc HandleReq(req) <=> ReqConditionFunc(req)
 type ReqConditionFunc func(req *http.Request) bool
 
-// RespConditionFunc.HandleResp(resp) <=> RespConditionFunc(resp)
+// RespConditionFunc HandleResp(resp) <=> RespConditionFunc(resp)
 type RespConditionFunc func(req *http.Request, resp *http.Response) bool
 
 func (c ReqConditionFunc) HandleReq(req *http.Request) bool {
@@ -226,7 +226,7 @@ func (pcond *ReqProxyConds) HandleConnect(h HTTPSHandler) {
 // for example, accepting CONNECT request if they contain a password in header
 //	io.WriteString(h,password)
 //	passHash := h.Sum(nil)
-//	proxy.OnRequest().HandleConnectFunc(func(host string, ctx context.Context) (*ConnectAction, string) {
+//	proxy.OnRequest().HandleConnectFunc(func(r *http.Request, host string) (*ConnectAction, string) {
 //		c := sha1.New()
 //		io.WriteString(c,CtxReq(ctx).Header.Get("X-GoProxy-Auth"))
 //		if c.Sum(nil) == passHash {
@@ -284,7 +284,7 @@ func (pcond *ProxyConds) Do(h RespHandler) {
 }
 
 // OnResponse is used when adding a response-filter to the HTTP proxy, usual pattern is
-//	proxy.OnResponse(cond1,cond2).Do(handler) // handler.Handle(resp,ctx) will be used
+//	proxy.OnResponse(cond1,cond2).Do(handler) // handler.Handle(resp) will be used
 //				// if cond1.HandleResp(resp) && cond2.HandleResp(resp)
 func (proxy *ProxyHttpServer) OnResponse(conds ...RespCondition) *ProxyConds {
 	return &ProxyConds{proxy, make([]ReqCondition, 0), conds}
