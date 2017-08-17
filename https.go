@@ -66,6 +66,7 @@ func (proxy *ProxyHttpServer) connectDial(ctx context.Context, network, addr str
 
 func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request) {
 	r = proxy.requestWithContext(r)
+	r = r.WithContext(ctxWithConnectRequest(r.Context(), r))
 
 	hij, ok := w.(http.Hijacker)
 	if !ok {
