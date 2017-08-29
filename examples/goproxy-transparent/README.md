@@ -4,7 +4,7 @@ This transparent example in goproxy is meant to show how to transparenty proxy a
 
 ## Why not explicit?
 
-Transparent proxies are more difficult to maintain and setup from a server side, but they require no configuration on the client(s) which could be in unmanaged systems or systems that don't support a proxy configuration.  See the [eavesdropper example](https://github.com/elazarl/goproxy2/blob/master/examples/goproxy-eavesdropper/main.go) if you want to see an explicit proxy example.
+Transparent proxies are more difficult to maintain and setup from a server side, but they require no configuration on the client(s) which could be in unmanaged systems or systems that don't support a proxy configuration.  See the [eavesdropper example](https://github.com/toebes/goproxy2/blob/master/examples/goproxy-eavesdropper/main.go) if you want to see an explicit proxy example.
 
 ## Potential Issues
 

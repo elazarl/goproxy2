@@ -141,7 +141,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			client := bufio.NewReader(proxyClient)
 			remote := bufio.NewReader(targetSiteCon)
 			req, err := http.ReadRequest(client)
-			req = req.WithContext(ctxWithConnectRequest(req.Context(), r))
+			req = SetCtxRequest(req, r)
 			if err != nil && err != io.EOF {
 				proxy.Loggers.Error.Log("event", "HTTP MITM ReadRequest", "error", err.Error())
 			}
@@ -185,17 +185,17 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 		}
 		go func() {
 			//TODO: cache connections to the remote website
-			rawClientTls := tls.Server(proxyClient, tlsConfig)
-			if err := rawClientTls.Handshake(); err != nil {
+			rawClientTLS := tls.Server(proxyClient, tlsConfig)
+			if err := rawClientTLS.Handshake(); err != nil {
 				proxy.Loggers.Error.Log("event", "TLS MITM Handshake", "error", err.Error())
 				return
 			}
-			defer rawClientTls.Close()
-			clientTlsReader := bufio.NewReader(rawClientTls)
-			for !isEof(clientTlsReader) {
-				req, err := http.ReadRequest(clientTlsReader)
+			defer rawClientTLS.Close()
+			clientTLSReader := bufio.NewReader(rawClientTLS)
+			for !isEof(clientTLSReader) {
+				req, err := http.ReadRequest(clientTLSReader)
 				req = proxy.requestWithContext(req)
-				req = req.WithContext(ctxWithConnectRequest(req.Context(), r))
+				req = SetCtxRequest(req, r)
 				if err != nil && err != io.EOF {
 					return
 				}
@@ -217,7 +217,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 						return
 					}
 					removeProxyHeaders(req)
-					rt := CtxRoundTripper(req.Context())
+					rt := CtxRoundTripper(req)
 					resp, err = rt.RoundTrip(req)
 					if err != nil {
 						proxy.Loggers.Error.Log("event", "HTTP MITM RoundTrip", "error", err.Error())
@@ -234,7 +234,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 					text = text[len(statusCode):]
 				}
 				// always use 1.1 to support chunked encoding
-				if _, err := io.WriteString(rawClientTls, "HTTP/1.1"+" "+statusCode+text+"\r\n"); err != nil {
+				if _, err := io.WriteString(rawClientTLS, "HTTP/1.1"+" "+statusCode+text+"\r\n"); err != nil {
 					proxy.Loggers.Error.Log("event", "HTTP MITM write response", "error", err.Error())
 					return
 				}
@@ -244,15 +244,15 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 				resp.Header.Set("Transfer-Encoding", "chunked")
 				// Force connection close otherwise chrome will keep CONNECT tunnel open forever
 				resp.Header.Set("Connection", "close")
-				if err := resp.Header.Write(rawClientTls); err != nil {
+				if err := resp.Header.Write(rawClientTLS); err != nil {
 					proxy.Loggers.Error.Log("event", "HTTP MITM response write header", "error", err.Error())
 					return
 				}
-				if _, err = io.WriteString(rawClientTls, "\r\n"); err != nil {
+				if _, err = io.WriteString(rawClientTLS, "\r\n"); err != nil {
 					proxy.Loggers.Error.Log("event", "HTTP MITM response write \\r\\n", "error", err.Error())
 					return
 				}
-				chunked := newChunkedWriter(rawClientTls)
+				chunked := newChunkedWriter(rawClientTLS)
 				if _, err := io.Copy(chunked, resp.Body); err != nil {
 					proxy.Loggers.Error.Log("event", "HTTP MITM response write body", "error", err.Error())
 					return
@@ -261,7 +261,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 					proxy.Loggers.Error.Log("event", "HTTP MITM response close chunked", "error", err.Error())
 					return
 				}
-				if _, err = io.WriteString(rawClientTls, "\r\n"); err != nil {
+				if _, err = io.WriteString(rawClientTLS, "\r\n"); err != nil {
 					proxy.Loggers.Error.Log("event", "HTTP MITM response write body", "error", err.Error())
 					return
 				}
@@ -272,8 +272,9 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 		proxyClient.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\n"))
 		todo.Hijack(r, proxyClient)
 	case ConnectReject:
-		if CtxResp(r.Context()) != nil {
-			if err := CtxResp(r.Context()).Write(proxyClient); err != nil {
+		ctxResponse := CtxResponse(r)
+		if ctxResponse != nil {
+			if err := ctxResponse.Write(proxyClient); err != nil {
 				proxy.Loggers.Error.Log("event", "HTTP CONNECT reject write", "error", err.Error())
 			}
 		}

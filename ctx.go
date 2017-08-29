@@ -5,84 +5,175 @@ import (
 	"net/http"
 )
 
+// ProxyCtx is the Proxy context, contains useful information about every request. It is stored in the
+// context of the request.
+//
+type ProxyCtx struct {
+	// Will contain the client request from the proxy
+	Req *http.Request
+	// Will contain the remote server's response (if available. nil if the request wasn't send yet)
+	Resp *http.Response
+	// The RoundTripper context
+	RoundTripper http.RoundTripper
+	// will contain the recent error that occurred while trying to send receive or parse traffic
+	Error error
+	// A handle for the user to keep data in the context, from the call of ReqHandler to the
+	// call of RespHandler
+	UserData interface{}
+	// Will connect a request to a response
+	Session int64
+	// The Proxy context that started it all
+	proxy *ProxyHttpServer
+}
+
+// The key that the context is found by on the request
 type ctxKey int
 
 const (
-	ctxKeyReq          ctxKey = iota
-	ctxKeyResp                = iota
-	ctxKeyRoundTripper        = iota
-	ctxKeyError               = iota
-	ctxKeyProxy               = iota
-	ctxKeyConnect             = iota
+	ctxKeyProxy ctxKey = iota
 )
 
+// CtxDebugLog Outputs a message to the debug log
+func CtxDebugLog(r *http.Request, keyvals ...interface{}) {
+	proxyCtx, ok := r.Context().Value(ctxKeyProxy).(*ProxyCtx)
+	if ok {
+		proxyCtx.proxy.Loggers.Debug.Log(keyvals...)
+	}
+}
+
+// CtxErrorLog Outputs a message to the error log
+func CtxErrorLog(r *http.Request, keyvals ...interface{}) {
+	proxyCtx, ok := r.Context().Value(ctxKeyProxy).(*ProxyCtx)
+	if ok {
+		proxyCtx.proxy.Loggers.Debug.Log(keyvals...)
+	} else {
+		StderrLogger.Log(keyvals...)
+	}
+}
+
+// GetAnyProxyCtx returns a ProxyCtx structure associated with the request.
+// If none is found, it return an empty context.
+func GetAnyProxyCtx(r *http.Request) *ProxyCtx {
+	proxyCtx, ok := r.Context().Value(ctxKeyProxy).(*ProxyCtx)
+	if !ok {
+		proxyCtx = &ProxyCtx{}
+	}
+	return proxyCtx
+}
+
+// GetProxyCtx returns a ProxyCtx structure associated with the request.  Note that if
+// there is no such structure, it allocates a new one and stores it with the request
+// As such the request may be updated and you need to store the new one.
+func GetProxyCtx(r *http.Request) (*http.Request, *ProxyCtx) {
+	proxyCtx, ok := r.Context().Value(ctxKeyProxy).(*ProxyCtx)
+	if !ok {
+		// No context, so allocate a new one and store it
+		proxyCtx = &ProxyCtx{}
+		ctx := context.WithValue(r.Context(), ctxKeyProxy, proxyCtx)
+		r = r.WithContext(ctx)
+	}
+	return r, proxyCtx
+}
+
+// requestWithContext updates associated the Proxy context with the request
 func (proxy *ProxyHttpServer) requestWithContext(r *http.Request) *http.Request {
-	ctx := context.WithValue(r.Context(), ctxKeyProxy, proxy)
-	return r.WithContext(ctx)
+	return SetCtxProxy(r, proxy)
 }
 
-func CtxWithResp(ctx context.Context, r *http.Response) context.Context {
-	return context.WithValue(ctx, ctxKeyResp, r)
-}
-func ctxWithConnectRequest(ctx context.Context, r *http.Request) context.Context {
-	return context.WithValue(ctx, ctxKeyConnect, r)
-}
-
-func CtxConnectRequest(ctx context.Context) *http.Request {
-	v, ok := ctx.Value(ctxKeyConnect).(*http.Request)
-	if !ok {
-		return nil
-	}
-	return v
+// SetCtxProxy sets the associated ProxyHttpServer for a request
+func SetCtxProxy(r *http.Request, proxy *ProxyHttpServer) *http.Request {
+	r, proxyCtx := GetProxyCtx(r)
+	proxyCtx.proxy = proxy
+	return r
 }
 
-func CtxResp(ctx context.Context) *http.Response {
-	v, ok := ctx.Value(ctxKeyResp).(*http.Response)
-	if !ok {
+// CtxProxy retrieves the associated Proxy for the request.  Note that if
+// the proxy is not found, this will panic.
+func CtxProxy(r *http.Request) *ProxyHttpServer {
+	proxyCtx := GetAnyProxyCtx(r)
+	if proxyCtx.proxy == nil {
 		panic("required value in context missing")
 	}
-	return v
+	return proxyCtx.proxy
 }
 
-func CtxWithReq(ctx context.Context, r *http.Request) context.Context {
-	return context.WithValue(ctx, ctxKeyReq, r)
+// SetCtxRequest sets the associated Request for the request
+func SetCtxRequest(r *http.Request, req *http.Request) *http.Request {
+	r, proxyCtx := GetProxyCtx(r)
+	proxyCtx.Req = req
+	return r
 }
 
-func CtxReq(ctx context.Context) *http.Request {
-	v, ok := ctx.Value(ctxKeyReq).(*http.Request)
-	if !ok {
-		panic("required value in context missing")
+// CtxRequest retrieves the associated Request for the request
+func CtxRequest(r *http.Request) *http.Request {
+	proxyCtx := GetAnyProxyCtx(r)
+	return proxyCtx.Req
+}
+
+// SetCtxResponse sets the associated Response for a request
+func SetCtxResponse(r *http.Request, resp *http.Response) *http.Request {
+	r, proxyCtx := GetProxyCtx(r)
+	proxyCtx.Resp = resp
+	return r
+}
+
+// CtxResponse retrieves the associated Response for the request.
+func CtxResponse(r *http.Request) *http.Response {
+	proxyCtx := GetAnyProxyCtx(r)
+	return proxyCtx.Resp
+}
+
+// SetCtxRoundTripper sets the associated RoundTripper for a request
+func SetCtxRoundTripper(r *http.Request, rt http.RoundTripper) *http.Request {
+	r, proxyCtx := GetProxyCtx(r)
+	proxyCtx.RoundTripper = rt
+	return r
+}
+
+// CtxRoundTripper retrieves the associated RoundTripper for the request.
+func CtxRoundTripper(r *http.Request) http.RoundTripper {
+	proxyCtx := GetAnyProxyCtx(r)
+	if proxyCtx.RoundTripper == nil {
+		return proxyCtx.proxy.Tr
 	}
-	return v
-}
-func CtxWithRoundTripper(ctx context.Context, rt http.RoundTripper) context.Context {
-	return context.WithValue(ctx, ctxKeyRoundTripper, rt)
+	return proxyCtx.RoundTripper
 }
 
-func CtxRoundTripper(ctx context.Context) http.RoundTripper {
-	v, ok := ctx.Value(ctxKeyRoundTripper).(http.RoundTripper)
-	if !ok {
-		proxy := ctxProxy(ctx)
-		return proxy.Tr
-	}
-	return v
+// SetCtxError sets the prevailing error with this request so it can be retrieved later
+func SetCtxError(r *http.Request, Error error) *http.Request {
+	r, proxyCtx := GetProxyCtx(r)
+	proxyCtx.Error = Error
+	return r
 }
 
-func CtxWithError(ctx context.Context, err error) context.Context {
-	return context.WithValue(ctx, ctxKeyError, err)
+// CtxError gets any prevailing error that has been associated with this request
+func CtxError(r *http.Request) (Error error) {
+	proxyCtx := GetAnyProxyCtx(r)
+	return proxyCtx.Error
 }
 
-func CtxError(ctx context.Context) error {
-	v, ok := ctx.Value(ctxKeyError).(error)
-	if !ok {
-		return nil
-	}
-	return v
+// SetCtxUserData sets the associated UserData for a request
+func SetCtxUserData(r *http.Request, UserData interface{}) *http.Request {
+	r, proxyCtx := GetProxyCtx(r)
+	proxyCtx.UserData = UserData
+	return r
 }
-func ctxProxy(ctx context.Context) *ProxyHttpServer {
-	proxy, ok := ctx.Value(ctxKeyProxy).(*ProxyHttpServer)
-	if !ok {
-		panic("required value in context missing")
-	}
-	return proxy
+
+// CtxUserData retrieves the associated Userdata for the request.
+func CtxUserData(r *http.Request) (UserData interface{}) {
+	proxyCtx := GetAnyProxyCtx(r)
+	return proxyCtx.UserData
+}
+
+// SetCtxSession sets the associated Session for a request
+func SetCtxSession(r *http.Request, Session int64) *http.Request {
+	r, proxyCtx := GetProxyCtx(r)
+	proxyCtx.Session = Session
+	return r
+}
+
+// CtxSession retrieves the associated Session for the request.
+func CtxSession(r *http.Request) (Session int64) {
+	proxyCtx := GetAnyProxyCtx(r)
+	return proxyCtx.Session
 }

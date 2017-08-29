@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/elazarl/goproxy2"
+	"github.com/toebes/goproxy2"
 )
 
 func main() {
@@ -15,6 +15,6 @@ func main() {
 	setCA(caCert, caKey)
 	proxy := goproxy.New()
 	proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
-	proxy.Verbose = *verbose
+	proxy.Verbose(*verbose)
 	log.Fatal(http.ListenAndServe(*addr, proxy))
 }

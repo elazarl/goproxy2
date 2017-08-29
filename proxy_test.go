@@ -18,8 +18,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/elazarl/goproxy2"
-	"github.com/elazarl/goproxy2/ext/image"
+	"github.com/toebes/goproxy2"
+	"github.com/toebes/goproxy2/ext/image"
 )
 
 var acceptAllCerts = &tls.Config{InsecureSkipVerify: true}
@@ -451,7 +451,6 @@ func TestConnectHandler(t *testing.T) {
 
 func TestMitmIsFiltered(t *testing.T) {
 	proxy := goproxy.New()
-	//proxy.Verbose = true
 	proxy.OnRequest(goproxy.ReqHostIs(https.Listener.Addr().String())).HandleConnect(goproxy.AlwaysMitm)
 	proxy.OnRequest(goproxy.UrlIs("/momo")).DoFunc(func(req *http.Request) (*http.Request, *http.Response) {
 		return nil, goproxy.TextResponse(req, "koko")
@@ -507,7 +506,7 @@ func TestIcyResponse(t *testing.T) {
 	return // skip for now
 	s := constantHttpServer([]byte("ICY 200 OK\r\n\r\nblablabla"))
 	proxy := goproxy.New()
-	proxy.Verbose = true
+    proxy.Verbose(true)
 	_, l := oneShotProxy(proxy, t)
 	defer l.Close()
 	req, err := http.NewRequest("GET", "http://"+s, nil)
@@ -614,7 +613,7 @@ func TestChunkedResponse(t *testing.T) {
 
 	proxy := goproxy.New()
 	proxy.OnResponse().DoFunc(func(req *http.Request, resp *http.Response) (*http.Request, *http.Response) {
-		panicOnErr(goproxy.CtxError(req.Context()), "error reading output")
+		panicOnErr(goproxy.CtxError(req), "error reading output")
 		b, err := ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
 		panicOnErr(err, "readall onresp")

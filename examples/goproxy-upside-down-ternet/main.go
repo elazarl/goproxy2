@@ -6,8 +6,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/elazarl/goproxy2"
-	"github.com/elazarl/goproxy2/ext/image"
+	"github.com/toebes/goproxy2"
+	"github.com/toebes/goproxy2/ext/image"
 )
 
 func main() {
@@ -23,6 +23,6 @@ func main() {
 		}
 		return nimg
 	}))
-	proxy.Verbose = true
+	proxy.Verbose(true)
 	log.Fatal(http.ListenAndServe(":8080", proxy))
 }

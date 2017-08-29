@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"github.com/elazarl/goproxy2"
+	"github.com/toebes/goproxy2"
 	"log"
 	"net"
 	"net/http"
@@ -20,6 +20,6 @@ func main() {
 		}
 		return
 	}
-	proxy.Verbose = *verbose
+	proxy.Verbose(*verbose)
 	log.Fatal(http.ListenAndServe(*addr, proxy))
 }

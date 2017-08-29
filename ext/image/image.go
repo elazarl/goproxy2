@@ -9,8 +9,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	. "github.com/elazarl/goproxy2"
-	"github.com/elazarl/goproxy2/regretable"
+	. "github.com/toebes/goproxy2"
+	"github.com/toebes/goproxy2/regretable"
 )
 
 var RespIsImage = ContentTypeIs("image/gif",
@@ -33,7 +33,7 @@ func HandleImage(f func(req *http.Request, img image.Image) image.Image) RespHan
 		contentType := resp.Header.Get("Content-Type")
 
 		const kb = 1024
-		regret := regretable.NewRegretableReaderCloserSize(resp.Body, 16*kb)
+		regret := regretable.NewReaderCloserSize(resp.Body, 16*kb)
 		resp.Body = regret
 		img, imgType, err := image.Decode(resp.Body)
 		if err != nil {
@@ -65,7 +65,7 @@ func HandleImage(f func(req *http.Request, img image.Image) image.Image) RespHan
 				}
 			}
 		default:
-			panic("unhandlable type" + contentType)
+			panic("unhandleable type" + contentType)
 		}
 		resp.Body = ioutil.NopCloser(buf)
 		return req, resp

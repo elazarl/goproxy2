@@ -2,14 +2,13 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"flag"
 	"log"
 	"net"
 	"net/http"
 	"regexp"
 
-	"github.com/elazarl/goproxy2"
+	"github.com/toebes/goproxy2"
 )
 
 func orPanic(err error) {
@@ -26,10 +25,10 @@ func main() {
 		HandleConnect(goproxy.AlwaysMitm)
 	// enable curl -p for all hosts on port 80
 	proxy.OnRequest(goproxy.ReqHostMatches(regexp.MustCompile("^.*:80$"))).
-		HijackConnect(func(req *http.Request, client net.Conn, ctx context.Context) {
+		HijackConnect(func(req *http.Request, client net.Conn) {
 			defer func() {
 				if e := recover(); e != nil {
-					ctx.Logf("error connecting to remote: %v", e)
+					CtxErrorLog(req, "error connecting to remote", e)
 					client.Write([]byte("HTTP/1.1 500 Cannot reach destination\r\n\r\n"))
 				}
 				client.Close()
@@ -49,9 +48,9 @@ func main() {
 				orPanic(clientBuf.Flush())
 			}
 		})
-	verbose := flag.Bool("v", false, "should every proxy request be logged to stdout")
+	verbose := flag.Bool("v", true, "should every proxy request be logged to stdout")
 	addr := flag.String("addr", ":8080", "proxy listen address")
 	flag.Parse()
-	proxy.Verbose = *verbose
+	proxy.Verbose(*verbose)
 	log.Fatal(http.ListenAndServe(*addr, proxy))
 }

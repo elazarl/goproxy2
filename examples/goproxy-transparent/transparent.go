@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"regexp"
 
-	"github.com/elazarl/goproxy2"
+	"github.com/toebes/goproxy2"
 	"github.com/inconshreveable/go-vhost"
 )
 
@@ -29,7 +29,7 @@ func main() {
 	flag.Parse()
 
 	proxy := goproxy.New()
-	proxy.Verbose = *verbose
+	proxy.Verbose(*verbose)
 	if proxy.Verbose {
 		log.Printf("Server starting up! - configured to listen on http interface %s and https interface %s", *http_addr, *https_addr)
 	}

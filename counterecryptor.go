@@ -9,6 +9,7 @@ import (
 	"errors"
 )
 
+// CounterEncryptorRand tracks the counters for encrypting using a private key
 type CounterEncryptorRand struct {
 	cipher  cipher.Block
 	counter []byte
@@ -16,6 +17,7 @@ type CounterEncryptorRand struct {
 	ix      int
 }
 
+// NewCounterEncryptorRandFromKey creates a structure for encrypting using a key
 func NewCounterEncryptorRandFromKey(key interface{}, seed []byte) (r CounterEncryptorRand, err error) {
 	var keyBytes []byte
 	switch key := key.(type) {
@@ -38,6 +40,7 @@ func NewCounterEncryptorRandFromKey(key interface{}, seed []byte) (r CounterEncr
 	return
 }
 
+// Seed sets the random number seed for encrypting
 func (c *CounterEncryptorRand) Seed(b []byte) {
 	if len(b) != len(c.counter) {
 		panic("SetCounter: wrong counter size")

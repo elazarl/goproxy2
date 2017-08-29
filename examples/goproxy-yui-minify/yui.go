@@ -23,7 +23,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/elazarl/goproxy2"
+	"github.com/toebes/goproxy2"
 )
 
 func main() {
@@ -53,7 +53,7 @@ func main() {
 		log.Fatal("Can't find yuicompressor jar specified ", *yuicompressor)
 	}
 	proxy := goproxy.New()
-	proxy.Verbose = *verbose
+	proxy.Verbose(*verbose)
 	proxy.OnResponse().DoFunc(func(resp *http.Response, ctx context.Context) *http.Response {
 		contentType := resp.Header.Get("Content-Type")
 		if contentType == "application/javascript" || contentType == "application/x-javascript" {

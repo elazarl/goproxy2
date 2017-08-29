@@ -1,0 +1,49 @@
+// cSpell Settings
+{
+    // Version of the setting file.  Always 0.1
+    "version": "0.1",
+    // language - current active spelling language
+    "language": "en",
+    // words - list of words to be always considered correct
+    "words": [
+        "Conds",
+        "Encryptor",
+        "Jquery",
+        "Mitm",
+        "URL's",
+        "Warnf",
+        "addri",
+        "baidu",
+        "bobo",
+        "bradfitz",
+        "canonicalized",
+        "dechunked",
+        "elazar",
+        "idna",
+        "jqueries",
+        "keyvals",
+        "koko",
+        "momo",
+        "nbytes",
+        "pcond",
+        "pconn",
+        "pjpeg",
+        "raddr",
+        "reddit",
+        "reqch",
+        "rt's",
+        "sess",
+        "srcs",
+        "treq",
+        "uncompress",
+        "unencrypted",
+        "unhandleable",
+        "zerr"
+    ],
+    // flagWords - list of words to be always considered incorrect
+    // This is useful for offensive words and common spelling errors.
+    // For example "hte" should be "the"
+    "flagWords": [
+        "hte"
+    ]
+}

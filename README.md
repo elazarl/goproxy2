@@ -57,14 +57,14 @@ To get a taste of `goproxy`, a basic HTTP/HTTPS transparent proxy
 package main
 
 import (
-    "github.com/elazarl/goproxy2"
+    "github.com/toebes/goproxy2"
     "log"
     "net/http"
 )
 
 func main() {
     proxy := goproxy.New()
-    proxy.Verbose = true
+    proxy.Verbose(true)
     log.Fatal(http.ListenAndServe(":8080", proxy))
 }
 ```

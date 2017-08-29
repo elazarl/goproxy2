@@ -1,2 +1,6 @@
 bin
 *.swp
+examples/goproxy-basic/debug
+examples/goproxy-eavesdropper/debug
+examples/goproxy-httpdump/debug
+examples/goproxy-httpdump/db/log
